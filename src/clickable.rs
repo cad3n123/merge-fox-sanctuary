@@ -12,7 +12,7 @@ use bevy::{
         world::World,
     },
     input::{
-        common_conditions::{input_just_pressed, input_just_released},
+        common_conditions::{input_just_pressed, input_just_released, input_pressed},
         mouse::MouseButton,
     },
     math::Vec2,
@@ -65,11 +65,7 @@ impl Plugin for ClickablePlugin {
         app.add_systems(
             Update,
             (
-                (
-                    hover,
-                    mouse_down.run_if(input_just_pressed(MouseButton::Left)),
-                )
-                    .chain(),
+                (hover, mouse_down.run_if(input_pressed(MouseButton::Left))).chain(),
                 mouse_up.run_if(input_just_released(MouseButton::Left)),
             ),
         );
@@ -90,22 +86,17 @@ fn hover(
                 continue;
             }
             let translation = transform.translation();
-            if clickable
-                .status
-                .is_none_or(|status| status != Status::MouseDown)
-            {
-                clickable.status = if point_in_bounds(
-                    mouse_coordinates,
-                    Vec2 {
-                        x: translation.x - size.0.x / 2.,
-                        y: translation.y - size.0.y / 2.,
-                    },
-                    size,
-                ) {
-                    Some(Status::Hovered)
-                } else {
-                    None
-                }
+            clickable.status = if point_in_bounds(
+                mouse_coordinates,
+                Vec2 {
+                    x: translation.x - size.0.x / 2.,
+                    y: translation.y - size.0.y / 2.,
+                },
+                size,
+            ) {
+                clickable.status.map_or(Some(Status::Hovered), Some)
+            } else {
+                None
             }
         }
     }
