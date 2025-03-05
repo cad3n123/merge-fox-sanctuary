@@ -22,6 +22,16 @@ pub(crate) enum AppState {
     Merge,
     Search,
 }
+
+macro_rules! add_state_transitions {
+    ($self:ident, $( $variant:ident ),* ) => {
+        $self
+        $(
+            .add_state_transition_systems::<$variant>(AppState::$variant)
+        )*
+    };
+}
+
 #[derive(Component)]
 pub(crate) struct Merge;
 #[derive(Component)]
@@ -41,8 +51,7 @@ impl StateTransitionExtension for App {
     }
 
     fn configure_state_transitions(&mut self) -> &mut Self {
-        self.add_state_transition_systems::<Merge>(AppState::Merge)
-            .add_state_transition_systems::<Search>(AppState::Search)
+        add_state_transitions!(self, Merge, Search)
     }
 }
 
