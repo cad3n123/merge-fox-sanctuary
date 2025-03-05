@@ -4,13 +4,30 @@ use std::{
 };
 
 use bevy::{
-    app::{App, Plugin, Update}, asset::AssetServer, ecs::{
-        component::Component, entity::Entity, event::{Event, EventReader}, query::With, schedule::IntoSystemConfigs, system::{Commands, Query, Res, ResMut, Resource}
-    }, hierarchy::{BuildChildren, ChildBuild, ChildBuilder, Children}, math::{Vec2, Vec3}, sprite::Sprite, state::condition::in_state, transform::components::Transform, utils::default
+    app::{App, Plugin, Update},
+    asset::AssetServer,
+    ecs::{
+        component::Component,
+        entity::Entity,
+        event::{Event, EventReader},
+        query::With,
+        schedule::IntoSystemConfigs,
+        system::{Commands, Query, Res, ResMut, Resource},
+    },
+    hierarchy::{BuildChildren, ChildBuild, ChildBuilder, Children},
+    math::{Vec2, Vec3},
+    sprite::Sprite,
+    state::condition::in_state,
+    transform::components::Transform,
+    utils::default,
 };
 use once_cell::sync::Lazy;
 
-use crate::{app_state::{AppState, Merge}, clickable::Clickable, Money, Size};
+use crate::{
+    app_state::{AppState, Merge},
+    clickable::Clickable,
+    Money, Size,
+};
 
 #[derive(Component)]
 pub(crate) struct FoxLot;

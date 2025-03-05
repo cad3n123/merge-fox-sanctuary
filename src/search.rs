@@ -23,7 +23,11 @@ use bevy::{
 };
 use strum_macros::EnumString;
 
-use crate::{app_state::{AppState, AppStateSet}, clickable::Clickable, Size};
+use crate::{
+    app_state::{AppState, AppStateSet},
+    clickable::Clickable,
+    Size,
+};
 
 #[derive(Component, Clone, Default)]
 struct Cell {

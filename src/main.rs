@@ -4,7 +4,9 @@ use bevy::{
     asset::AssetServer,
     core_pipeline::core_2d::Camera2d,
     ecs::{
-        component::Component, query::With, system::{Commands, Query, Res}
+        component::Component,
+        query::With,
+        system::{Commands, Query, Res},
     },
     math::Vec2,
     render::camera::Camera,

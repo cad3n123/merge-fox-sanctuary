@@ -99,7 +99,10 @@ pub(crate) mod merge_ui {
         utils::default,
     };
 
-    use crate::{app_state::{AppState, Merge}, fox_lot::FoxLotPrice};
+    use crate::{
+        app_state::{AppState, Merge},
+        fox_lot::FoxLotPrice,
+    };
 
     use super::{MoneyContainer, RootTrait};
 
