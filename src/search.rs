@@ -33,7 +33,6 @@ struct Cell {
 impl Cell {
     const SIZE: f32 = 40.;
 
-    #[inline]
     pub fn spawn(
         &self,
         commands: &mut Commands,
@@ -50,7 +49,7 @@ impl Cell {
         ));
         cell.with_children(|cell| {
             if let Some(cell_type) = &self.cell_type {
-                CellType::spawn(cell, asset_server, cell_type);
+                cell_type.spawn(cell, asset_server);
             }
             if !self.revealed {
                 CellCover::spawn(cell, meshes, materials);
@@ -79,10 +78,10 @@ enum CellType {
     Obstacle(ObstacleType),
 }
 impl CellType {
-    fn spawn(cell: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>, cell_type: &Self) {
+    fn spawn(&self, cell: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>) {
         cell.spawn((
             Sprite {
-                image: asset_server.load(format!("images/{cell_type:?}.png")),
+                image: asset_server.load(format!("images/{self:?}.png")),
                 custom_size: Some(Vec2::splat(Cell::SIZE)),
                 ..default()
             },
@@ -185,7 +184,6 @@ fn reveal_cell(
     mut cells_q: Query<&mut Cell>,
 ) {
     for ev in cell_cover_clicked.read() {
-        println!("Test5");
         if let Ok((cell_cover_parent, cell_cover)) = cell_covers_q.get(ev.0) {
             if let Ok(mut cell) = cells_q.get_mut(cell_cover_parent.get()) {
                 cell.revealed = true;

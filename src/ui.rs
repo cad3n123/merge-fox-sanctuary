@@ -38,7 +38,6 @@ pub(crate) mod merge_ui {
     #[derive(Component)]
     struct Root;
     impl RootTrait for Root {
-        #[inline]
         fn spawn(commands: &mut Commands, asset_server: &Res<AssetServer>) {
             commands
                 .spawn((
@@ -61,7 +60,6 @@ pub(crate) mod merge_ui {
     #[derive(Component)]
     struct TopContainer;
     impl TopContainer {
-        #[inline]
         fn spawn(root: &mut bevy::hierarchy::ChildBuilder<'_>, asset_server: &Res<AssetServer>) {
             root.spawn((
                 Self,
@@ -85,7 +83,6 @@ pub(crate) mod merge_ui {
     impl MoneyContainer {
         const FONT_SIZE: f32 = 85.;
 
-        #[inline]
         fn spawn(
             top_container: &mut bevy::hierarchy::ChildBuilder<'_>,
             asset_server: &Res<AssetServer>,
@@ -121,7 +118,6 @@ pub(crate) mod merge_ui {
     impl PriceContainer {
         const FONT_SIZE: f32 = 35.;
 
-        #[inline]
         fn spawn(
             top_container: &mut bevy::hierarchy::ChildBuilder<'_>,
             asset_server: &Res<AssetServer>,
@@ -177,7 +173,6 @@ pub(crate) mod merge_ui {
     #[derive(Component)]
     struct SearchButton;
     impl SearchButton {
-        #[inline]
         fn spawn(root: &mut bevy::hierarchy::ChildBuilder<'_>) {
             root.spawn((
                 Self,
@@ -198,7 +193,6 @@ pub(crate) mod merge_ui {
     impl SearchButtonText {
         const FONT_SIZE: f32 = 50.;
 
-        #[inline]
         fn spawn(search_button: &mut bevy::hierarchy::ChildBuilder<'_>) {
             search_button.spawn((
                 Self,

@@ -22,7 +22,7 @@ mod fox_lot_statics {
 }
 impl FoxLot {
     const PADDING: f32 = 10.;
-    #[inline]
+
     fn spawn(
         commands: &mut Commands,
         asset_server: &Res<AssetServer>,
@@ -83,7 +83,6 @@ struct FoxSanctuary {
     level: i32,
 }
 impl FoxSanctuary {
-    #[inline]
     fn spawn(fox_lot: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>, level: i32) {
         let mut fox_sanctuary = fox_lot.spawn((Self { level }, Transform::from_xyz(0., 0., 1.)));
         fox_sanctuary.insert(Sprite {
@@ -133,7 +132,6 @@ fn buy_fox_lot(
     mut fox_sanctuaries_q: Query<(&mut FoxSanctuary, &mut Sprite)>,
 ) {
     for ev in fox_lot_clicked.read() {
-        println!("This isn't good, from {ev:?}");
         if money.ge(&fox_lot_price.0) {
             if let Ok(fox_lot_children) = fox_lots_q.get(ev.0) {
                 for &fox_lot_child in fox_lot_children {
