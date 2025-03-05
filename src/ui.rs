@@ -1,10 +1,78 @@
 use bevy::{
+    app::{App, Plugin, Update},
     asset::AssetServer,
-    ecs::system::{Commands, Res},
+    ecs::{
+        component::Component,
+        query::With,
+        schedule::{common_conditions::resource_changed, Condition, IntoSystemConfigs},
+        system::{Commands, Query, Res},
+    },
+    hierarchy::{BuildChildren, ChildBuild, ChildBuilder},
+    state::condition::state_changed,
+    text::TextFont,
+    ui::{
+        widget::{ImageNode, Text},
+        AlignItems, Node, Val,
+    },
+    utils::default,
 };
+
+use crate::{AppState, Money};
 
 trait RootTrait {
     fn spawn(commands: &mut Commands, asset_server: &Res<AssetServer>);
+}
+#[derive(Component)]
+struct MoneyContainer;
+impl MoneyContainer {
+    const FONT_SIZE: f32 = 85.;
+
+    fn spawn(top_container: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>) {
+        top_container
+            .spawn((
+                Self,
+                Node {
+                    column_gap: Val::Px(10.),
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+            ))
+            .with_children(|money_container| {
+                money_container.spawn((
+                    ImageNode::new(asset_server.load("images/coin.png")),
+                    Node {
+                        width: Val::Px(Self::FONT_SIZE),
+                        height: Val::Px(Self::FONT_SIZE),
+                        ..default()
+                    },
+                ));
+                money_container.spawn((
+                    MoneyUI,
+                    Text::new("0"),
+                    TextFont::from_font_size(Self::FONT_SIZE),
+                ));
+            });
+    }
+}
+#[derive(Component)]
+struct MoneyUI;
+impl MoneyUI {
+    #[allow(clippy::needless_pass_by_value)]
+    fn update(mut money_uis_q: Query<&mut Text, With<Self>>, money: Res<Money>) {
+        let money_string: String = money.to_string();
+        for mut money_ui in &mut money_uis_q {
+            money_ui.0.clone_from(&money_string);
+        }
+    }
+}
+pub struct UIPlugin;
+impl Plugin for UIPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            Update,
+            MoneyUI::update.run_if(resource_changed::<Money>.or(state_changed::<AppState>)),
+        );
+    }
 }
 
 pub(crate) mod merge_ui {
@@ -17,7 +85,7 @@ pub(crate) mod merge_ui {
             schedule::{common_conditions::resource_changed, IntoSystemConfigs},
             system::{Commands, Query, Res, ResMut},
         },
-        hierarchy::{BuildChildren, ChildBuild},
+        hierarchy::{BuildChildren, ChildBuild, ChildBuilder},
         state::{
             condition::in_state,
             state::{NextState, OnEnter},
@@ -31,9 +99,9 @@ pub(crate) mod merge_ui {
         utils::default,
     };
 
-    use crate::{fox_lot::FoxLotPrice, AppState, Merge, Money};
+    use crate::{fox_lot::FoxLotPrice, AppState, Merge};
 
-    use super::RootTrait;
+    use super::{MoneyContainer, RootTrait};
 
     #[derive(Component)]
     struct Root;
@@ -60,7 +128,7 @@ pub(crate) mod merge_ui {
     #[derive(Component)]
     struct TopContainer;
     impl TopContainer {
-        fn spawn(root: &mut bevy::hierarchy::ChildBuilder<'_>, asset_server: &Res<AssetServer>) {
+        fn spawn(root: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>) {
             root.spawn((
                 Self,
                 Node {
@@ -79,49 +147,11 @@ pub(crate) mod merge_ui {
         }
     }
     #[derive(Component)]
-    struct MoneyContainer;
-    impl MoneyContainer {
-        const FONT_SIZE: f32 = 85.;
-
-        fn spawn(
-            top_container: &mut bevy::hierarchy::ChildBuilder<'_>,
-            asset_server: &Res<AssetServer>,
-        ) {
-            top_container
-                .spawn((
-                    Self,
-                    Node {
-                        column_gap: Val::Px(10.),
-                        align_items: AlignItems::Center,
-                        ..default()
-                    },
-                ))
-                .with_children(|money_container| {
-                    money_container.spawn((
-                        ImageNode::new(asset_server.load("images/coin.png")),
-                        Node {
-                            width: Val::Px(Self::FONT_SIZE),
-                            height: Val::Px(Self::FONT_SIZE),
-                            ..default()
-                        },
-                    ));
-                    money_container.spawn((
-                        MoneyUI,
-                        Text::new("0"),
-                        TextFont::from_font_size(Self::FONT_SIZE),
-                    ));
-                });
-        }
-    }
-    #[derive(Component)]
     struct PriceContainer;
     impl PriceContainer {
         const FONT_SIZE: f32 = 35.;
 
-        fn spawn(
-            top_container: &mut bevy::hierarchy::ChildBuilder<'_>,
-            asset_server: &Res<AssetServer>,
-        ) {
+        fn spawn(top_container: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>) {
             top_container
                 .spawn((
                     Self,
@@ -150,15 +180,6 @@ pub(crate) mod merge_ui {
         }
     }
     #[derive(Component)]
-    struct MoneyUI;
-    impl MoneyUI {
-        #[allow(clippy::needless_pass_by_value)]
-        fn update(mut money_ui_q: Query<&mut Text, With<Self>>, money: Res<Money>) {
-            let mut money_ui = money_ui_q.single_mut();
-            money_ui.0 = money.to_string();
-        }
-    }
-    #[derive(Component)]
     struct FoxLotPriceUI;
     impl FoxLotPriceUI {
         #[allow(clippy::needless_pass_by_value)]
@@ -173,7 +194,7 @@ pub(crate) mod merge_ui {
     #[derive(Component)]
     struct SearchButton;
     impl SearchButton {
-        fn spawn(root: &mut bevy::hierarchy::ChildBuilder<'_>) {
+        fn spawn(root: &mut ChildBuilder<'_>) {
             root.spawn((
                 Self,
                 Button,
@@ -193,7 +214,7 @@ pub(crate) mod merge_ui {
     impl SearchButtonText {
         const FONT_SIZE: f32 = 50.;
 
-        fn spawn(search_button: &mut bevy::hierarchy::ChildBuilder<'_>) {
+        fn spawn(search_button: &mut ChildBuilder<'_>) {
             search_button.spawn((
                 Self,
                 Text::new("Search"),
@@ -209,7 +230,6 @@ pub(crate) mod merge_ui {
                 .add_systems(
                     Update,
                     (
-                        MoneyUI::update.run_if(resource_changed::<Money>),
                         FoxLotPriceUI::update.run_if(resource_changed::<FoxLotPrice>),
                         search_button_system,
                     )
@@ -218,7 +238,7 @@ pub(crate) mod merge_ui {
         }
     }
     #[allow(clippy::needless_pass_by_value)]
-    fn merge_startup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    pub(super) fn merge_startup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Root::spawn(&mut commands, &asset_server);
     }
     #[allow(clippy::needless_pass_by_value)]
@@ -239,26 +259,77 @@ pub(crate) mod merge_ui {
         }
     }
 }
-// pub(crate) mod search_ui {
-//     use bevy::{ecs::component::Component, ui::{FlexDirection, JustifyContent, Node, Val}, utils::default};
+pub(crate) mod search_ui {
+    use bevy::{
+        app::{App, Plugin},
+        asset::AssetServer,
+        ecs::{
+            component::Component,
+            system::{Commands, Res},
+        },
+        hierarchy::{BuildChildren, ChildBuild, ChildBuilder},
+        state::state::OnEnter,
+        ui::{AlignItems, FlexDirection, JustifyContent, JustifySelf, Node, Val},
+        utils::default,
+    };
 
-//     use super::RootTrait;
+    use crate::{AppState, Search};
 
-//     #[derive(Component)]
-//     struct Root;
-//     impl RootTrait for Root {
-//         fn spawn(commands: &mut bevy::ecs::system::Commands, asset_server: &bevy::ecs::system::Res<bevy::asset::AssetServer>) {
-//             commands
-//                 .spawn((
-//                     Self,
-//                     Node {
-//                         width: Val::Percent(100.),
-//                         height: Val::Percent(100.),
-//                         flex_direction: FlexDirection::Column,
-//                         justify_content: JustifyContent::SpaceBetween,
-//                         ..default()
-//                     },
-//                 ));
-//         }
-//     }
-// }
+    use super::{MoneyContainer, RootTrait};
+
+    #[derive(Component)]
+    struct Root;
+    impl RootTrait for Root {
+        fn spawn(
+            commands: &mut bevy::ecs::system::Commands,
+            asset_server: &bevy::ecs::system::Res<bevy::asset::AssetServer>,
+        ) {
+            commands
+                .spawn((
+                    Self,
+                    Search,
+                    Node {
+                        width: Val::Percent(100.),
+                        height: Val::Percent(100.),
+                        flex_direction: FlexDirection::Column,
+                        justify_content: JustifyContent::SpaceBetween,
+                        ..default()
+                    },
+                ))
+                .with_children(|root| {
+                    TopContainer::spawn(root, asset_server);
+                });
+        }
+    }
+    #[derive(Component)]
+    struct TopContainer;
+    impl TopContainer {
+        fn spawn(root: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>) {
+            root.spawn((
+                Self,
+                Node {
+                    width: Val::Percent(100.),
+                    row_gap: Val::Px(10.),
+                    align_items: AlignItems::Center,
+                    flex_direction: FlexDirection::Column,
+                    justify_self: JustifySelf::Start,
+                    ..default()
+                },
+            ))
+            .with_children(|top_container| {
+                MoneyContainer::spawn(top_container, asset_server);
+            });
+        }
+    }
+
+    pub struct UIPlugin;
+    impl Plugin for UIPlugin {
+        fn build(&self, app: &mut App) {
+            app.add_systems(OnEnter(AppState::Search), search_startup);
+        }
+    }
+    #[allow(clippy::needless_pass_by_value)]
+    pub(super) fn search_startup(mut commands: Commands, asset_server: Res<AssetServer>) {
+        Root::spawn(&mut commands, &asset_server);
+    }
+}

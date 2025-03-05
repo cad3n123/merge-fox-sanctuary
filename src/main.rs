@@ -22,7 +22,7 @@ use clickable::{Clickable, ClickablePlugin};
 use fox_lot::{FoxLot, FoxLotPlugin};
 use money::Money;
 use search::SearchPlugin;
-use ui::merge_ui;
+use ui::{merge_ui, search_ui, UIPlugin};
 
 pub mod clickable;
 pub mod fox_lot;
@@ -39,6 +39,8 @@ impl Default for Size {
 }
 #[derive(Component)]
 struct Merge;
+#[derive(Component)]
+struct Search;
 #[derive(States, Default, Debug, Hash, Clone, PartialEq, Eq)]
 enum AppState {
     #[default]
@@ -50,7 +52,9 @@ fn main() {
     let mut app = App::new();
     app.add_plugins((
         DefaultPlugins,
+        UIPlugin,
         merge_ui::UIPlugin,
+        search_ui::UIPlugin,
         ClickablePlugin,
         FoxLotPlugin,
         SearchPlugin,
