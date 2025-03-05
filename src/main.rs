@@ -1,19 +1,13 @@
+use app_state::AppStatePlugin;
 use bevy::{
     app::{App, Startup},
     asset::AssetServer,
     core_pipeline::core_2d::Camera2d,
     ecs::{
-        component::Component,
-        entity::Entity,
-        query::With,
-        system::{Commands, Query, Res},
+        component::Component, query::With, system::{Commands, Query, Res}
     },
     math::Vec2,
-    render::{camera::Camera, view::Visibility},
-    state::{
-        app::AppExtStates,
-        state::{OnEnter, OnExit, States},
-    },
+    render::camera::Camera,
     transform::components::GlobalTransform,
     window::{MonitorSelection, PrimaryWindow, Window, WindowMode},
     DefaultPlugins,
@@ -24,6 +18,7 @@ use money::Money;
 use search::SearchPlugin;
 use ui::{merge_ui, search_ui, UIPlugin};
 
+pub mod app_state;
 pub mod clickable;
 pub mod fox_lot;
 pub mod money;
@@ -37,21 +32,12 @@ impl Default for Size {
         Self(Vec2::ZERO)
     }
 }
-#[derive(Component)]
-struct Merge;
-#[derive(Component)]
-struct Search;
-#[derive(States, Default, Debug, Hash, Clone, PartialEq, Eq)]
-enum AppState {
-    #[default]
-    Merge,
-    Search,
-}
 
 fn main() {
     let mut app = App::new();
     app.add_plugins((
         DefaultPlugins,
+        AppStatePlugin,
         UIPlugin,
         merge_ui::UIPlugin,
         search_ui::UIPlugin,
@@ -60,10 +46,7 @@ fn main() {
         SearchPlugin,
     ));
     app.insert_resource(Money::default());
-    app.init_state::<AppState>();
-    app.add_systems(Startup, startup)
-        .add_systems(OnEnter(AppState::Merge), merge_startup)
-        .add_systems(OnExit(AppState::Merge), merge_exit);
+    app.add_systems(Startup, startup);
     app.run();
 }
 #[allow(clippy::needless_pass_by_value)]
@@ -78,30 +61,6 @@ fn startup(
     commands.spawn(Camera2d);
 
     FoxLot::spawn_grid(&mut commands, &asset_server, -1..=1, -1..=1);
-}
-#[allow(clippy::needless_pass_by_value)]
-fn merge_startup(
-    mut commands: Commands,
-    mut merge_entities_q: Query<(Entity, Option<&mut Clickable>), With<Merge>>,
-) {
-    for (merge_entity, clickable) in &mut merge_entities_q {
-        commands.entity(merge_entity).insert(Visibility::Visible);
-        if let Some(mut clickable) = clickable {
-            clickable.active = true;
-        }
-    }
-}
-#[allow(clippy::needless_pass_by_value)]
-fn merge_exit(
-    mut commands: Commands,
-    mut merge_entities_q: Query<(Entity, Option<&mut Clickable>), With<Merge>>,
-) {
-    for (merge_entity, clickable) in &mut merge_entities_q {
-        commands.entity(merge_entity).insert(Visibility::Hidden);
-        if let Some(mut clickable) = clickable {
-            clickable.active = false;
-        }
-    }
 }
 fn mouse_world_coordinates(
     window: &Window,

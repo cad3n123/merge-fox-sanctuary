@@ -23,7 +23,7 @@ use bevy::{
 };
 use strum_macros::EnumString;
 
-use crate::{clickable::Clickable, merge_exit, AppState, Size};
+use crate::{app_state::{AppState, AppStateSet}, clickable::Clickable, Size};
 
 #[derive(Component, Clone, Default)]
 struct Cell {
@@ -142,7 +142,7 @@ impl Plugin for SearchPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Level::default())
             .add_event::<CellCoverClickedEvent>()
-            .add_systems(OnEnter(AppState::Search), search_startup.after(merge_exit))
+            .add_systems(OnEnter(AppState::Search), search_startup.after(AppStateSet))
             .add_systems(Update, (reveal_cell).run_if(in_state(AppState::Search)));
     }
 }

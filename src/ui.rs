@@ -17,7 +17,7 @@ use bevy::{
     utils::default,
 };
 
-use crate::{AppState, Money};
+use crate::{app_state::AppState, Money};
 
 trait RootTrait {
     fn spawn(commands: &mut Commands, asset_server: &Res<AssetServer>);
@@ -99,7 +99,7 @@ pub(crate) mod merge_ui {
         utils::default,
     };
 
-    use crate::{fox_lot::FoxLotPrice, AppState, Merge};
+    use crate::{app_state::{AppState, Merge}, fox_lot::FoxLotPrice};
 
     use super::{MoneyContainer, RootTrait};
 
@@ -273,7 +273,7 @@ pub(crate) mod search_ui {
         utils::default,
     };
 
-    use crate::{AppState, Search};
+    use crate::app_state::{AppState, Search};
 
     use super::{MoneyContainer, RootTrait};
 

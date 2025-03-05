@@ -10,7 +10,7 @@ use bevy::{
 };
 use once_cell::sync::Lazy;
 
-use crate::{clickable::Clickable, AppState, Merge, Money, Size};
+use crate::{app_state::{AppState, Merge}, clickable::Clickable, Money, Size};
 
 #[derive(Component)]
 pub(crate) struct FoxLot;
