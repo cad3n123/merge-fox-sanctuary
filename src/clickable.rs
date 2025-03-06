@@ -23,35 +23,57 @@ use bevy::{
 
 use crate::{mouse_world_coordinates, point_in_bounds, Size};
 
-type OnClick = Arc<dyn Fn(&mut Commands, Entity) + Send + Sync>;
+type MouseEvent = Arc<dyn Fn(&mut Commands, Entity) + Send + Sync>;
 #[derive(Component, Clone)]
 #[require(Size, Transform)]
 pub(crate) struct Clickable {
     status: Option<Status>,
-    on_click: OnClick,
+    on_no_mouse_event: Option<MouseEvent>,
+    on_hover: Option<MouseEvent>,
+    on_mouseup: Option<MouseEvent>,
     pub(crate) active: bool,
 }
 impl Clickable {
-    pub fn new<F>(on_click: F) -> Self
-    where
-        F: Fn(&mut Commands, Entity) + Send + Sync + 'static,
-    {
+    pub fn new() -> Self {
         Self {
             status: None,
-            on_click: Arc::new(on_click),
+            on_no_mouse_event: None,
+            on_hover: None,
+            on_mouseup: None,
             active: true,
         }
     }
-    pub fn new_event<E>(event_constructor: fn(Entity) -> E) -> Self
+    fn new_mouse_event<E>(event_constructor: fn(Entity) -> E) -> MouseEvent
     where
-        E: Event + Send + Sync + Debug, // + 'static,
+        E: Event + Send + Sync + Debug,
     {
-        Self::new(move |commands: &mut Commands, clickable: Entity| {
+        Arc::new(move |commands: &mut Commands, clickable: Entity| {
             commands.queue(move |world: &mut World| {
                 let event = event_constructor(clickable);
                 world.send_event(event);
             });
         })
+    }
+    pub fn add_no_mouse_event_event<E>(mut self, event_constructor: fn(Entity) -> E) -> Self
+    where
+        E: Event + Send + Sync + Debug,
+    {
+        self.on_no_mouse_event = Some(Self::new_mouse_event(event_constructor));
+        self
+    }
+    pub fn add_hover_event<E>(mut self, event_constructor: fn(Entity) -> E) -> Self
+    where
+        E: Event + Send + Sync + Debug,
+    {
+        self.on_hover = Some(Self::new_mouse_event(event_constructor));
+        self
+    }
+    pub fn add_mouseup_event<E>(mut self, event_constructor: fn(Entity) -> E) -> Self
+    where
+        E: Event + Send + Sync + Debug,
+    {
+        self.on_mouseup = Some(Self::new_mouse_event(event_constructor));
+        self
     }
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -73,15 +95,16 @@ impl Plugin for ClickablePlugin {
 }
 #[allow(clippy::needless_pass_by_value)]
 fn hover(
+    mut commands: Commands,
     q_window: Query<&Window, With<PrimaryWindow>>,
     q_camera: Query<(&Camera, &GlobalTransform)>,
-    mut clickables_q: Query<(&mut Clickable, &Size, &GlobalTransform)>,
+    mut clickables_q: Query<(Entity, &mut Clickable, &Size, &GlobalTransform)>,
 ) {
     let (camera, camera_transform) = q_camera.single();
     let window = q_window.single();
 
     if let Some(mouse_coordinates) = mouse_world_coordinates(window, camera, camera_transform) {
-        for (mut clickable, size, transform) in &mut clickables_q {
+        for (entity, mut clickable, size, transform) in &mut clickables_q {
             if !clickable.active {
                 continue;
             }
@@ -94,8 +117,21 @@ fn hover(
                 },
                 size,
             ) {
-                clickable.status.map_or(Some(Status::Hovered), Some)
+                clickable.status.map_or_else(
+                    || {
+                        if let Some(on_hover) = &clickable.on_hover {
+                            (on_hover)(&mut commands, entity);
+                        }
+                        Some(Status::Hovered)
+                    },
+                    Some,
+                )
             } else {
+                if clickable.status.is_some() {
+                    if let Some(on_no_mouse_event) = &clickable.on_no_mouse_event {
+                        (on_no_mouse_event)(&mut commands, entity);
+                    }
+                }
                 None
             }
         }
@@ -126,7 +162,12 @@ fn mouse_up(mut commands: Commands, mut clickables_q: Query<(Entity, &mut Clicka
             .is_some_and(|status| status == Status::MouseDown)
         {
             clickable.status = None;
-            (clickable.on_click)(&mut commands, entity);
+            if let Some(on_mouseup) = &clickable.on_mouseup {
+                (on_mouseup)(&mut commands, entity);
+            }
+            if let Some(on_no_mouse_event) = &clickable.on_no_mouse_event {
+                (on_no_mouse_event)(&mut commands, entity);
+            }
         }
     }
 }

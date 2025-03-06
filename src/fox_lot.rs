@@ -50,7 +50,7 @@ impl FoxLot {
             .spawn((
                 Self,
                 Merge,
-                Clickable::new_event(FoxLotClickedEvent),
+                Clickable::new().add_mouseup_event(FoxLotMouseupEvent),
                 Size(*fox_lot_statics::SIZE),
                 Transform::from_translation(translation),
                 Sprite {
@@ -129,13 +129,13 @@ impl Display for FoxLotPrice {
     }
 }
 #[derive(Event, Debug)]
-struct FoxLotClickedEvent(Entity);
+struct FoxLotMouseupEvent(Entity);
 
 pub struct FoxLotPlugin;
 impl Plugin for FoxLotPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(FoxLotPrice::default())
-            .add_event::<FoxLotClickedEvent>()
+            .add_event::<FoxLotMouseupEvent>()
             .add_systems(Update, (buy_fox_lot).run_if(in_state(AppState::Merge)));
     }
 }
@@ -144,7 +144,7 @@ fn buy_fox_lot(
     asset_server: Res<AssetServer>,
     mut money: ResMut<Money>,
     mut fox_lot_price: ResMut<FoxLotPrice>,
-    mut fox_lot_clicked: EventReader<FoxLotClickedEvent>,
+    mut fox_lot_clicked: EventReader<FoxLotMouseupEvent>,
     fox_lots_q: Query<&Children, With<FoxLot>>,
     mut fox_sanctuaries_q: Query<(&mut FoxSanctuary, &mut Sprite)>,
 ) {

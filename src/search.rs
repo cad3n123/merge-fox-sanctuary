@@ -2,7 +2,7 @@ use bevy::{
     app::{App, Plugin, Update},
     asset::{AssetServer, Assets},
     color::{
-        palettes::tailwind::{GREEN_400, GREEN_800},
+        palettes::tailwind::{GREEN_400, GREEN_800, GREEN_900},
         Color,
     },
     ecs::{
@@ -13,9 +13,12 @@ use bevy::{
         schedule::IntoSystemConfigs,
         system::{Commands, Query, Res, ResMut, Resource},
     },
-    hierarchy::{BuildChildren, ChildBuild, ChildBuilder, DespawnRecursiveExt, Parent},
+    hierarchy::{BuildChildren, ChildBuild, ChildBuilder, Children, DespawnRecursiveExt, Parent},
     math::{primitives::Rectangle, Vec2, Vec3},
-    render::mesh::{Mesh, Mesh2d},
+    render::{
+        mesh::{Mesh, Mesh2d},
+        view::Visibility,
+    },
     sprite::{ColorMaterial, MeshMaterial2d, Sprite},
     state::{condition::in_state, state::OnEnter},
     transform::components::Transform,
@@ -53,11 +56,11 @@ impl Cell {
             Transform::from_translation(translation),
         ));
         cell.with_children(|cell| {
-            if let Some(cell_type) = &self.cell_type {
-                cell_type.spawn(cell, asset_server);
-            }
             if !self.revealed {
                 CellCover::spawn(cell, meshes, materials);
+            }
+            if let Some(cell_type) = &self.cell_type {
+                cell_type.spawn(cell, asset_server, self.revealed);
             }
         });
     }
@@ -104,20 +107,21 @@ impl From<char> for Cell {
         }
     }
 }
-#[derive(Debug, EnumString, Clone, Copy)]
+#[derive(Component, Debug, EnumString, Clone, Copy)]
 enum CellType {
     PawPrint(FoxSpecies),
     Obstacle(ObstacleType),
     Fox(FoxSpecies),
 }
 impl CellType {
-    fn spawn(self, cell: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>) {
+    fn spawn(self, cell: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>, revealed: bool) {
         cell.spawn((
+            self,
             Sprite {
                 image: asset_server.load(format!(
                     "images/{}.png",
                     if self.is_fox() {
-                        "coin".to_owned() // TODO: Make fox sprite // TODO: Remove this if else and create different sprites for different foxes
+                        "Fox".to_owned() // TODO: Remove this if else and create different sprites for different foxes
                     } else {
                         format!("{self:?}")
                     }
@@ -127,6 +131,11 @@ impl CellType {
             },
             Size(Vec2::splat(Cell::SIZE)),
             Transform::from_translation(Vec3::Z),
+            if revealed {
+                Visibility::Visible
+            } else {
+                Visibility::Hidden
+            },
         ));
     }
 
@@ -141,6 +150,9 @@ impl CellType {
 #[derive(Component)]
 struct CellCover;
 impl CellCover {
+    const NORMAL_COLOR: Color = Color::Srgba(GREEN_800);
+    const HOVER_COLOR: Color = Color::Srgba(GREEN_900);
+
     fn spawn(
         cell: &mut ChildBuilder<'_>,
         meshes: &mut ResMut<Assets<Mesh>>,
@@ -148,10 +160,13 @@ impl CellCover {
     ) {
         cell.spawn((
             Self,
-            Clickable::new_event(CellCoverClickedEvent),
+            Clickable::new()
+                .add_no_mouse_event_event(CellCoverNoMouseEventEvent)
+                .add_hover_event(CellCoverHoverEvent)
+                .add_mouseup_event(CellCoverMouseupEvent),
             Size(Vec2::splat(Cell::SIZE)),
             Mesh2d(meshes.add(Rectangle::from_length(Cell::SIZE))),
-            MeshMaterial2d(materials.add(Color::from(GREEN_800))),
+            MeshMaterial2d(materials.add(Self::NORMAL_COLOR)),
             Transform::from_translation(2. * Vec3::Z),
         ));
     }
@@ -283,15 +298,24 @@ mod cell_statics {
     }
 }
 #[derive(Event, Debug)]
-struct CellCoverClickedEvent(Entity);
+struct CellCoverNoMouseEventEvent(Entity);
+#[derive(Event, Debug)]
+struct CellCoverHoverEvent(Entity);
+#[derive(Event, Debug)]
+struct CellCoverMouseupEvent(Entity);
 
 pub(crate) struct SearchPlugin;
 impl Plugin for SearchPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Level::default())
-            .add_event::<CellCoverClickedEvent>()
+            .add_event::<CellCoverNoMouseEventEvent>()
+            .add_event::<CellCoverHoverEvent>()
+            .add_event::<CellCoverMouseupEvent>()
             .add_systems(OnEnter(AppState::Search), search_startup.after(AppStateSet))
-            .add_systems(Update, (reveal_cell).run_if(in_state(AppState::Search)));
+            .add_systems(
+                Update,
+                (no_mouse_event_cell, hover_cell, reveal_cell).run_if(in_state(AppState::Search)),
+            );
     }
 }
 
@@ -312,16 +336,46 @@ fn search_startup(
     );
 }
 #[allow(clippy::needless_pass_by_value)]
+fn no_mouse_event_cell(
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut cell_cover_event: EventReader<CellCoverNoMouseEventEvent>,
+    mut cell_covers_q: Query<&mut MeshMaterial2d<ColorMaterial>, With<CellCover>>,
+) {
+    for ev in cell_cover_event.read() {
+        if let Ok(mut cell_cover_material) = cell_covers_q.get_mut(ev.0) {
+            *cell_cover_material = MeshMaterial2d(materials.add(CellCover::NORMAL_COLOR));
+        }
+    }
+}
+#[allow(clippy::needless_pass_by_value)]
+fn hover_cell(
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut cell_cover_event: EventReader<CellCoverHoverEvent>,
+    mut cell_covers_q: Query<&mut MeshMaterial2d<ColorMaterial>, With<CellCover>>,
+) {
+    for ev in cell_cover_event.read() {
+        if let Ok(mut cell_cover_material) = cell_covers_q.get_mut(ev.0) {
+            *cell_cover_material = MeshMaterial2d(materials.add(CellCover::HOVER_COLOR));
+        }
+    }
+}
+#[allow(clippy::needless_pass_by_value)]
 fn reveal_cell(
     mut commands: Commands,
-    mut cell_cover_clicked: EventReader<CellCoverClickedEvent>,
+    mut cell_cover_event: EventReader<CellCoverMouseupEvent>,
     cell_covers_q: Query<(&Parent, Entity), With<CellCover>>,
-    mut cells_q: Query<&mut Cell>,
+    mut cells_q: Query<(&mut Cell, &Children)>,
+    mut cell_types_q: Query<&mut Visibility, With<CellType>>,
 ) {
-    for ev in cell_cover_clicked.read() {
+    for ev in cell_cover_event.read() {
         if let Ok((cell_cover_parent, cell_cover)) = cell_covers_q.get(ev.0) {
-            if let Ok(mut cell) = cells_q.get_mut(cell_cover_parent.get()) {
+            if let Ok((mut cell, cell_children)) = cells_q.get_mut(cell_cover_parent.get()) {
                 cell.revealed = true;
+                for cell_child in cell_children {
+                    if let Ok(mut cell_type) = cell_types_q.get_mut(*cell_child) {
+                        *cell_type = Visibility::Visible;
+                    }
+                }
             }
             commands.entity(cell_cover).despawn_recursive();
         }
