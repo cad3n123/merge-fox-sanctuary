@@ -14,7 +14,7 @@ use bevy::{
         schedule::IntoSystemConfigs,
         system::{Commands, Query, Res, ResMut, Resource},
     },
-    hierarchy::{BuildChildren, ChildBuild, ChildBuilder, Children},
+    hierarchy::{BuildChildren, ChildBuild, ChildBuilder, Children, Parent},
     math::{Vec2, Vec3},
     sprite::Sprite,
     state::condition::in_state,
@@ -26,7 +26,7 @@ use once_cell::sync::Lazy;
 use crate::{
     app_state::{AppState, Merge},
     clickable::Clickable,
-    Money, Size,
+    FollowMouse, Money, Size,
 };
 
 #[derive(Component)]
@@ -50,7 +50,9 @@ impl FoxLot {
             .spawn((
                 Self,
                 Merge,
-                Clickable::new().add_mouseup_event(FoxLotMouseupEvent),
+                Clickable::new()
+                    .set_mousedown_event(FoxLotMousedownEvent)
+                    .set_mouseup_event(FoxLotMouseupEvent),
                 Size(*fox_lot_statics::SIZE),
                 Transform::from_translation(translation),
                 Sprite {
@@ -129,26 +131,60 @@ impl Display for FoxLotPrice {
     }
 }
 #[derive(Event, Debug)]
+struct FoxLotMousedownEvent(Entity);
+#[derive(Event, Debug)]
 struct FoxLotMouseupEvent(Entity);
 
 pub struct FoxLotPlugin;
 impl Plugin for FoxLotPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(FoxLotPrice::default())
+            .add_event::<FoxLotMousedownEvent>()
             .add_event::<FoxLotMouseupEvent>()
-            .add_systems(Update, (buy_fox_lot).run_if(in_state(AppState::Merge)));
+            .add_systems(
+                Update,
+                (mousedown_fox_sanctuary, mouseup_fox_sanctuary).run_if(in_state(AppState::Merge)),
+            );
     }
 }
 #[allow(clippy::needless_pass_by_value)]
-fn buy_fox_lot(
+fn mousedown_fox_sanctuary(
+    mut commands: Commands,
+    mut fox_lot_mousedown_events: EventReader<FoxLotMousedownEvent>,
+    fox_lots_q: Query<&Children, With<FoxLot>>,
+    mut fox_sanctuaries_q: Query<(Entity, Option<&Parent>, &FoxSanctuary, &Transform)>,
+) {
+    for ev in fox_lot_mousedown_events.read() {
+        if let Ok(fox_lot_children) = fox_lots_q.get(ev.0) {
+            for &fox_lot_child in fox_lot_children {
+                if let Ok((entity, parent, fox_sanctuary, transform)) =
+                    fox_sanctuaries_q.get_mut(fox_lot_child)
+                {
+                    if fox_sanctuary.level != 0 {
+                        // Select Fox Sanctuary
+                        commands
+                            .entity(entity)
+                            .insert(FollowMouse {
+                                parent: parent.map(Parent::get),
+                                previous_transform: *transform,
+                            })
+                            .remove_parent();
+                    }
+                }
+            }
+        }
+    }
+}
+#[allow(clippy::needless_pass_by_value)]
+fn mouseup_fox_sanctuary(
     asset_server: Res<AssetServer>,
     mut money: ResMut<Money>,
     mut fox_lot_price: ResMut<FoxLotPrice>,
-    mut fox_lot_clicked: EventReader<FoxLotMouseupEvent>,
+    mut fox_lot_mouseup_events: EventReader<FoxLotMouseupEvent>,
     fox_lots_q: Query<&Children, With<FoxLot>>,
     mut fox_sanctuaries_q: Query<(&mut FoxSanctuary, &mut Sprite)>,
 ) {
-    for ev in fox_lot_clicked.read() {
+    for ev in fox_lot_mouseup_events.read() {
         if money.ge(&fox_lot_price.0) {
             if let Ok(fox_lot_children) = fox_lots_q.get(ev.0) {
                 for &fox_lot_child in fox_lot_children {
@@ -156,6 +192,7 @@ fn buy_fox_lot(
                         fox_sanctuaries_q.get_mut(fox_lot_child)
                     {
                         if fox_sanctuary.level == 0 {
+                            // Buy Fox Sanctuary
                             money.sub_assign(fox_lot_price.0.clone());
                             fox_lot_price.0 += &*fox_lot_price_statics::BASE_PRICE;
                             fox_sanctuary.level += 1;

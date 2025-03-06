@@ -168,9 +168,9 @@ impl CellCover {
         cell.spawn((
             Self,
             Clickable::new()
-                .add_no_mouse_event_event(CellCoverNoMouseEventEvent)
-                .add_hover_event(CellCoverHoverEvent)
-                .add_mouseup_event(CellCoverMouseupEvent),
+                .set_no_mouse_event_event(CellCoverNoMouseEventEvent)
+                .set_hover_event(CellCoverHoverEvent)
+                .set_mouseup_event(CellCoverMouseupEvent),
             Size(Vec2::splat(Cell::SIZE)),
             Mesh2d(meshes.add(Rectangle::from_length(Cell::SIZE))),
             MeshMaterial2d(materials.add(Self::NORMAL_COLOR)),

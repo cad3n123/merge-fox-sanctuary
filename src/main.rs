@@ -2,17 +2,18 @@
 
 use app_state::AppStatePlugin;
 use bevy::{
-    app::{App, Startup},
+    app::{App, Startup, Update},
     asset::AssetServer,
     core_pipeline::core_2d::Camera2d,
     ecs::{
         component::Component,
+        entity::Entity,
         query::With,
-        system::{Commands, Query, Res},
+        system::{Commands, Query, Res, Single},
     },
-    math::Vec2,
+    math::{Vec2, Vec3},
     render::camera::Camera,
-    transform::components::GlobalTransform,
+    transform::components::{GlobalTransform, Transform},
     window::{MonitorSelection, PrimaryWindow, Window, WindowMode},
     DefaultPlugins,
 };
@@ -21,6 +22,23 @@ use fox_lot::{FoxLot, FoxLotPlugin};
 use money::Money;
 use search::SearchPlugin;
 use ui::{merge_ui, search_ui, UIPlugin};
+
+trait MyVec2 {
+    fn into_vec3_with_z(self, z: f32) -> Vec3;
+    fn into_vec3(self) -> Vec3;
+}
+impl MyVec2 for Vec2 {
+    fn into_vec3_with_z(self, z: f32) -> Vec3 {
+        Vec3 {
+            x: self.x,
+            y: self.y,
+            z,
+        }
+    }
+    fn into_vec3(self) -> Vec3 {
+        self.into_vec3_with_z(0.)
+    }
+}
 
 pub mod app_state;
 pub mod clickable;
@@ -34,6 +52,28 @@ struct Size(Vec2);
 impl Default for Size {
     fn default() -> Self {
         Self(Vec2::ZERO)
+    }
+}
+#[derive(Component)]
+pub(crate) struct FollowMouse {
+    parent: Option<Entity>,
+    previous_transform: Transform,
+}
+impl FollowMouse {
+    #[allow(clippy::needless_pass_by_value)]
+    fn system(
+        window: Single<&Window, With<PrimaryWindow>>,
+        camera_q: Single<(&Camera, &GlobalTransform)>,
+        mut follow_mouses_q: Query<&mut Transform, With<Self>>,
+    ) {
+        let (camera, camera_transform) = *camera_q;
+        if let Some(mouse_coordinates) = mouse_world_coordinates(&window, camera, camera_transform)
+        {
+            for mut follow_mouse in &mut follow_mouses_q {
+                let translation = &mut follow_mouse.translation;
+                *translation = mouse_coordinates.into_vec3_with_z(translation.z);
+            }
+        }
     }
 }
 
@@ -50,7 +90,8 @@ fn main() {
         SearchPlugin,
     ));
     app.insert_resource(Money::default());
-    app.add_systems(Startup, startup);
+    app.add_systems(Startup, startup)
+        .add_systems(Update, FollowMouse::system);
     app.run();
 }
 #[allow(clippy::needless_pass_by_value)]

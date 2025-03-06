@@ -23,6 +23,8 @@ use bevy::{
 
 use crate::{mouse_world_coordinates, point_in_bounds, Size};
 
+#[derive(Component)]
+pub(crate) struct Hovered;
 type MouseEvent = Arc<dyn Fn(&mut Commands, Entity) + Send + Sync>;
 #[derive(Component, Clone)]
 #[require(Size, Transform)]
@@ -30,6 +32,7 @@ pub(crate) struct Clickable {
     status: Option<Status>,
     on_no_mouse_event: Option<MouseEvent>,
     on_hover: Option<MouseEvent>,
+    on_mousedown: Option<MouseEvent>,
     on_mouseup: Option<MouseEvent>,
     pub(crate) active: bool,
 }
@@ -39,6 +42,7 @@ impl Clickable {
             status: None,
             on_no_mouse_event: None,
             on_hover: None,
+            on_mousedown: None,
             on_mouseup: None,
             active: true,
         }
@@ -54,21 +58,28 @@ impl Clickable {
             });
         })
     }
-    pub fn add_no_mouse_event_event<E>(mut self, event_constructor: fn(Entity) -> E) -> Self
+    pub fn set_no_mouse_event_event<E>(mut self, event_constructor: fn(Entity) -> E) -> Self
     where
         E: Event + Send + Sync + Debug,
     {
         self.on_no_mouse_event = Some(Self::new_mouse_event(event_constructor));
         self
     }
-    pub fn add_hover_event<E>(mut self, event_constructor: fn(Entity) -> E) -> Self
+    pub fn set_hover_event<E>(mut self, event_constructor: fn(Entity) -> E) -> Self
     where
         E: Event + Send + Sync + Debug,
     {
         self.on_hover = Some(Self::new_mouse_event(event_constructor));
         self
     }
-    pub fn add_mouseup_event<E>(mut self, event_constructor: fn(Entity) -> E) -> Self
+    pub fn set_mousedown_event<E>(mut self, event_constructor: fn(Entity) -> E) -> Self
+    where
+        E: Event + Send + Sync + Debug,
+    {
+        self.on_mousedown = Some(Self::new_mouse_event(event_constructor));
+        self
+    }
+    pub fn set_mouseup_event<E>(mut self, event_constructor: fn(Entity) -> E) -> Self
     where
         E: Event + Send + Sync + Debug,
     {
@@ -122,6 +133,7 @@ fn hover(
                         if let Some(on_hover) = &clickable.on_hover {
                             (on_hover)(&mut commands, entity);
                         }
+                        commands.entity(entity).insert(Hovered);
                         Some(Status::Hovered)
                     },
                     Some,
@@ -132,14 +144,15 @@ fn hover(
                         (on_no_mouse_event)(&mut commands, entity);
                     }
                 }
+                commands.entity(entity).remove::<Hovered>();
                 None
             }
         }
     }
 }
 #[allow(clippy::needless_pass_by_value)]
-fn mouse_down(mut clickables_q: Query<&mut Clickable>) {
-    for mut clickable in &mut clickables_q {
+fn mouse_down(mut commands: Commands, mut clickables_q: Query<(Entity, &mut Clickable)>) {
+    for (entity, mut clickable) in &mut clickables_q {
         if !clickable.active {
             continue;
         }
@@ -148,6 +161,10 @@ fn mouse_down(mut clickables_q: Query<&mut Clickable>) {
             .is_some_and(|status| status == Status::Hovered)
         {
             clickable.status = Some(Status::MouseDown);
+            commands.entity(entity).remove::<Hovered>();
+            if let Some(on_mousedown) = &clickable.on_mousedown {
+                (on_mousedown)(&mut commands, entity);
+            }
         }
     }
 }
@@ -162,6 +179,7 @@ fn mouse_up(mut commands: Commands, mut clickables_q: Query<(Entity, &mut Clicka
             .is_some_and(|status| status == Status::MouseDown)
         {
             clickable.status = None;
+            commands.entity(entity).remove::<Hovered>();
             if let Some(on_mouseup) = &clickable.on_mouseup {
                 (on_mouseup)(&mut commands, entity);
             }
