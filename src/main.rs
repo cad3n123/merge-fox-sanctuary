@@ -1,3 +1,5 @@
+#![allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
+
 use app_state::AppStatePlugin;
 use bevy::{
     app::{App, Startup},

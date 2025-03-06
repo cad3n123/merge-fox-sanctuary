@@ -12,7 +12,7 @@ use bevy::{
         world::World,
     },
     input::{
-        common_conditions::{input_just_pressed, input_just_released, input_pressed},
+        common_conditions::{input_just_released, input_pressed},
         mouse::MouseButton,
     },
     math::Vec2,

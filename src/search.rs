@@ -21,6 +21,7 @@ use bevy::{
     transform::components::Transform,
     utils::default,
 };
+use enum_map::Enum;
 use strum_macros::EnumString;
 
 use crate::{
@@ -29,16 +30,16 @@ use crate::{
     Size,
 };
 
-#[derive(Component, Clone, Default)]
+#[derive(Component, Clone, Copy, Default)]
 struct Cell {
     cell_type: Option<CellType>,
     revealed: bool,
 }
 impl Cell {
-    const SIZE: f32 = 40.;
+    const SIZE: f32 = 100.;
 
     pub fn spawn(
-        &self,
+        self,
         commands: &mut Commands,
         asset_server: &Res<AssetServer>,
         meshes: &mut ResMut<Assets<Mesh>>,
@@ -46,7 +47,7 @@ impl Cell {
         translation: Vec3,
     ) {
         let mut cell = commands.spawn((
-            self.clone(),
+            self,
             Mesh2d(meshes.add(Rectangle::from_length(Self::SIZE))),
             MeshMaterial2d(materials.add(Color::from(GREEN_400))),
             Transform::from_translation(translation),
@@ -60,6 +61,32 @@ impl Cell {
             }
         });
     }
+    pub fn spawn_level(
+        commands: &mut Commands,
+        asset_server: &Res<AssetServer>,
+        meshes: &mut ResMut<Assets<Mesh>>,
+        materials: &mut ResMut<Assets<ColorMaterial>>,
+        level: &Res<Level>,
+    ) {
+        let cells = &cell_statics::LEVEL_CELLS[level.0];
+        let height = cells.len();
+        let start_y = (height - 1) as f32 / 2.;
+        for (y, row) in cells.iter().enumerate() {
+            for (x, cell) in row.iter().enumerate() {
+                cell.spawn(
+                    commands,
+                    asset_server,
+                    meshes,
+                    materials,
+                    Vec3 {
+                        x: x as f32 * Self::SIZE,
+                        y: (start_y - y as f32) * Self::SIZE,
+                        z: 0.,
+                    },
+                );
+            }
+        }
+    }
 }
 impl From<char> for Cell {
     fn from(character: char) -> Self {
@@ -70,28 +97,45 @@ impl From<char> for Cell {
                 'C' => Some(CellType::PawPrint(FoxSpecies::Corsac)),
                 // Obstacles
                 's' => Some(CellType::Obstacle(ObstacleType::Stones)),
+                'l' => Some(CellType::Obstacle(ObstacleType::Log)),
                 _ => None,
             },
             ..default()
         }
     }
 }
-#[derive(Debug, EnumString, Clone)]
+#[derive(Debug, EnumString, Clone, Copy)]
 enum CellType {
     PawPrint(FoxSpecies),
     Obstacle(ObstacleType),
+    Fox(FoxSpecies),
 }
 impl CellType {
-    fn spawn(&self, cell: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>) {
+    fn spawn(self, cell: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>) {
         cell.spawn((
             Sprite {
-                image: asset_server.load(format!("images/{self:?}.png")),
+                image: asset_server.load(format!(
+                    "images/{}.png",
+                    if self.is_fox() {
+                        "coin".to_owned() // TODO: Make fox sprite // TODO: Remove this if else and create different sprites for different foxes
+                    } else {
+                        format!("{self:?}")
+                    }
+                )),
                 custom_size: Some(Vec2::splat(Cell::SIZE)),
                 ..default()
             },
             Size(Vec2::splat(Cell::SIZE)),
             Transform::from_translation(Vec3::Z),
         ));
+    }
+
+    /// Returns `true` if the cell type is [`Fox`].
+    ///
+    /// [`Fox`]: CellType::Fox
+    #[must_use]
+    const fn is_fox(self) -> bool {
+        matches!(self, Self::Fox(..))
     }
 }
 #[derive(Component)]
@@ -112,31 +156,131 @@ impl CellCover {
         ));
     }
 }
-#[derive(Debug, Default, Clone)]
+struct IntVec2 {
+    x: i32,
+    y: i32,
+}
+#[derive(Debug, Default, Clone, Copy, Enum)]
 enum FoxSpecies {
     #[default]
     Vulpes,
     Corsac,
 }
-#[derive(Debug, Default, Clone)]
+mod fox_species_statics {
+    use enum_map::{enum_map, EnumMap};
+    use once_cell::sync::Lazy;
+
+    use super::{FoxSpecies, IntVec2};
+
+    pub static FOX_SPECIES_LAYOUTS: Lazy<EnumMap<FoxSpecies, Vec<IntVec2>>> = Lazy::new(|| {
+        enum_map! {
+            FoxSpecies::Vulpes => vec![IntVec2 { x: 0, y: 1 }, IntVec2 { x: -1, y: 0 }, IntVec2 { x: 1, y: 0 }, IntVec2 { x: 0, y: -1 }], // TODO: Think of this
+            FoxSpecies::Corsac => vec![IntVec2 { x: 1, y: -1 }, IntVec2 { x: 2, y: -1 }, IntVec2 { x: 1, y: -2 }, IntVec2 { x: 2, y: -2 }]
+        }
+    });
+}
+#[derive(Debug, Default, Clone, Copy, Enum)]
 enum ObstacleType {
     #[default]
     Stones,
+    Log,
+}
+mod obstacle_statics {
+    use enum_map::{enum_map, EnumMap};
+    use once_cell::sync::Lazy;
+
+    use super::{IntVec2, ObstacleType};
+
+    pub static OBSTACLE_LAYOUTS: Lazy<EnumMap<ObstacleType, Vec<IntVec2>>> = Lazy::new(|| {
+        enum_map! {
+            ObstacleType::Stones => vec![IntVec2 { x: 0, y: 1 }, IntVec2 { x: -1, y: 0 }, IntVec2 { x: 1, y: 0 }, IntVec2 { x: 0, y: -1 }],
+            ObstacleType::Log => vec![IntVec2 { x: -2, y: 0 }, IntVec2 { x: -1, y: 0 }, IntVec2 { x: 1, y: 0 }, IntVec2 { x: 2, y: 0 }]
+        }
+    });
 }
 #[derive(Resource, Default)]
 struct Level(usize);
-mod level_statics {
+mod cell_statics {
+    use std::cell;
+
     use once_cell::sync::Lazy;
 
-    pub static LEVEL_LAYOUTS: Lazy<Vec<Vec<&str>>> = Lazy::new(|| {
-        vec![vec![
+    use super::{fox_species_statics, obstacle_statics, Cell, CellType};
+
+    pub static LEVEL_CELLS: Lazy<Vec<Vec<Vec<Cell>>>> = Lazy::new(|| {
+        vec![cells_from_level_layout(&vec![
             "C     ", //
-            "  V   ", //
-            "   C  ", //
-            "    s ", //
+            "l     ", //
+            "s     ", //
             "      ", //
-        ]]
+            "      ", //
+        ])]
     });
+    fn cells_from_level_layout(level_layout: &Vec<&str>) -> Vec<Vec<Cell>> {
+        let mut cells: Vec<Vec<cell::Cell<(Cell, bool)>>> = vec![];
+        for row in level_layout {
+            let mut cell_row = vec![];
+            for (x, character) in row.chars().enumerate() {
+                let mut cell = Cell::from(character);
+                cell.revealed = x == 0;
+                cell_row.push(cell::Cell::from((cell, true)));
+            }
+            cells.push(cell_row);
+        }
+        for (y, row) in cells.iter().enumerate() {
+            for (x, cell_cell) in row.iter().enumerate() {
+                let (cell, _is_foxable) = cell_cell.get();
+                if let Some(CellType::Obstacle(obstacle)) = &cell.cell_type {
+                    let obstacle_layout = &obstacle_statics::OBSTACLE_LAYOUTS[*obstacle];
+                    for int_vec2 in obstacle_layout {
+                        let dest_x = x as i32 + int_vec2.x;
+                        let dest_y = y as i32 - int_vec2.y;
+                        if let Some(dest_row) = cells.get(dest_y as usize) {
+                            if let Some(dest_cell_cell) = dest_row.get(dest_x as usize) {
+                                dest_cell_cell.set((dest_cell_cell.get().0, false));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        for (y, row) in cells.iter().enumerate() {
+            for (x, cell_cell) in row.iter().enumerate() {
+                let (cell, _is_foxable) = cell_cell.get();
+                if let Some(CellType::PawPrint(fox_species)) = &cell.cell_type {
+                    let fox_species_layout =
+                        &fox_species_statics::FOX_SPECIES_LAYOUTS[*fox_species];
+                    let mut fox_locations: Vec<(usize, usize)> = vec![];
+                    for int_vec2 in fox_species_layout {
+                        let dest_x = x as i32 + int_vec2.x;
+                        let dest_y = y as i32 - int_vec2.y;
+                        if let Some(dest_row) = cells.get(dest_y as usize) {
+                            if let Some(dest_cell_cell) = dest_row.get(dest_x as usize) {
+                                let (dest_cell, dest_is_foxable) = dest_cell_cell.get();
+                                if dest_is_foxable && dest_cell.cell_type.is_none() {
+                                    fox_locations.push((dest_x as usize, dest_y as usize));
+                                }
+                            }
+                        }
+                    }
+                    assert!(
+                        fox_locations.len() <= 1,
+                        "Level incorrectly made:\n{level_layout:?}"
+                    );
+                    if let Some(fox_location) = fox_locations.first() {
+                        let cell_cell = &cells[fox_location.1][fox_location.0];
+                        let (mut cell, is_foxable) = cell_cell.get();
+                        cell.cell_type = Some(CellType::Fox(*fox_species));
+                        cell_cell.set((cell, is_foxable));
+                    }
+                }
+            }
+        }
+        cells
+            .iter()
+            .map(|row| row.iter().map(|cell_cell| cell_cell.get().0).collect())
+            .collect()
+    }
 }
 #[derive(Event, Debug)]
 struct CellCoverClickedEvent(Entity);
@@ -159,26 +303,13 @@ fn search_startup(
     mut materials: ResMut<Assets<ColorMaterial>>,
     level: Res<Level>,
 ) {
-    let level_layout = &level_statics::LEVEL_LAYOUTS[level.0];
-    let height = level_layout.len();
-    let start_y = (height - 1) as f32 / 2.;
-    for (y, row) in level_layout.iter().enumerate() {
-        for (x, character) in row.chars().enumerate() {
-            let mut cell = Cell::from(character);
-            cell.revealed = x == 0;
-            cell.spawn(
-                &mut commands,
-                &asset_server,
-                &mut meshes,
-                &mut materials,
-                Vec3 {
-                    x: x as f32 * Cell::SIZE,
-                    y: (start_y - y as f32) * Cell::SIZE,
-                    z: 0.,
-                },
-            );
-        }
-    }
+    Cell::spawn_level(
+        &mut commands,
+        &asset_server,
+        &mut meshes,
+        &mut materials,
+        &level,
+    );
 }
 #[allow(clippy::needless_pass_by_value)]
 fn reveal_cell(

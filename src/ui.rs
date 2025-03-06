@@ -272,7 +272,11 @@ pub(crate) mod search_ui {
         },
         hierarchy::{BuildChildren, ChildBuild, ChildBuilder},
         state::state::OnEnter,
-        ui::{AlignItems, FlexDirection, JustifyContent, JustifySelf, Node, Val},
+        text::TextFont,
+        ui::{
+            widget::{Button, Text},
+            AlignItems, AlignSelf, FlexDirection, JustifyContent, JustifySelf, Node, UiRect, Val,
+        },
         utils::default,
     };
 
@@ -301,6 +305,7 @@ pub(crate) mod search_ui {
                 ))
                 .with_children(|root| {
                     TopContainer::spawn(root, asset_server);
+                    CatchButton::spawn(root);
                 });
         }
     }
@@ -322,6 +327,37 @@ pub(crate) mod search_ui {
             .with_children(|top_container| {
                 MoneyContainer::spawn(top_container, asset_server);
             });
+        }
+    }
+    #[derive(Component)]
+    struct CatchButton;
+    impl CatchButton {
+        fn spawn(root: &mut ChildBuilder<'_>) {
+            root.spawn((
+                Self,
+                Button,
+                Node {
+                    align_self: AlignSelf::Center,
+                    margin: UiRect::bottom(Val::Px(30.)),
+                    ..default()
+                },
+            ))
+            .with_children(|search_button| {
+                CatchButtonText::spawn(search_button);
+            });
+        }
+    }
+    #[derive(Component)]
+    struct CatchButtonText;
+    impl CatchButtonText {
+        const FONT_SIZE: f32 = 50.;
+
+        fn spawn(search_button: &mut ChildBuilder<'_>) {
+            search_button.spawn((
+                Self,
+                Text::new("Catch"),
+                TextFont::from_font_size(Self::FONT_SIZE),
+            ));
         }
     }
 
