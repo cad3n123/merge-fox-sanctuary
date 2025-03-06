@@ -211,6 +211,20 @@ pub(crate) mod merge_ui {
                 SearchButtonText::spawn(search_button);
             });
         }
+        #[allow(clippy::needless_pass_by_value)]
+        fn system(
+            mut next_app_state: ResMut<NextState<AppState>>,
+            search_button_interaction_q: Query<&Interaction, (Changed<Interaction>, With<Self>)>,
+        ) {
+            if search_button_interaction_q.is_empty() {
+                return;
+            }
+
+            let search_button_interaction = search_button_interaction_q.single();
+            if *search_button_interaction == Interaction::Pressed {
+                next_app_state.set(AppState::Search);
+            }
+        }
     }
     #[derive(Component)]
     struct SearchButtonText;
@@ -234,7 +248,7 @@ pub(crate) mod merge_ui {
                     Update,
                     (
                         FoxLotPriceUI::update.run_if(resource_changed::<FoxLotPrice>),
-                        search_button_system,
+                        SearchButton::system,
                     )
                         .run_if(in_state(AppState::Merge)),
                 );
@@ -244,43 +258,38 @@ pub(crate) mod merge_ui {
     pub(super) fn merge_startup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Root::spawn(&mut commands, &asset_server);
     }
-    #[allow(clippy::needless_pass_by_value)]
-    fn search_button_system(
-        mut next_app_state: ResMut<NextState<AppState>>,
-        search_button_interaction_q: Query<
-            &Interaction,
-            (Changed<Interaction>, With<SearchButton>),
-        >,
-    ) {
-        if search_button_interaction_q.is_empty() {
-            return;
-        }
-
-        let search_button_interaction = search_button_interaction_q.single();
-        if *search_button_interaction == Interaction::Pressed {
-            next_app_state.set(AppState::Search);
-        }
-    }
 }
 pub(crate) mod search_ui {
     use bevy::{
-        app::{App, Plugin},
+        app::{App, Plugin, Update},
         asset::AssetServer,
         ecs::{
             component::Component,
-            system::{Commands, Res},
+            entity::Entity,
+            query::{Changed, With},
+            schedule::IntoSystemConfigs,
+            system::{Commands, Query, Res, ResMut, Single},
         },
         hierarchy::{BuildChildren, ChildBuild, ChildBuilder},
-        state::state::OnEnter,
+        state::{
+            condition::in_state,
+            state::{NextState, OnEnter, State},
+        },
         text::TextFont,
         ui::{
             widget::{Button, Text},
-            AlignItems, AlignSelf, FlexDirection, JustifyContent, JustifySelf, Node, UiRect, Val,
+            AlignItems, AlignSelf, FlexDirection, Interaction, JustifyContent, JustifySelf, Node,
+            UiRect, Val,
         },
         utils::default,
+        window::Window,
+        winit::cursor::{CursorIcon, CustomCursor},
     };
 
-    use crate::app_state::{AppState, Search};
+    use crate::{
+        app_state::{AppState, Search},
+        search::SearchState,
+    };
 
     use super::{MoneyContainer, RootTrait};
 
@@ -346,6 +355,33 @@ pub(crate) mod search_ui {
                 CatchButtonText::spawn(search_button);
             });
         }
+        #[allow(clippy::needless_pass_by_value)]
+        fn system(
+            mut commands: Commands,
+            asset_server: Res<AssetServer>,
+            search_state: Res<State<SearchState>>,
+            mut next_search_state: ResMut<NextState<SearchState>>,
+            window: Single<Entity, With<Window>>,
+            button_interaction_q: Query<&Interaction, (Changed<Interaction>, With<Self>)>,
+        ) {
+            if button_interaction_q.is_empty() {
+                return;
+            }
+
+            let search_button_interaction = button_interaction_q.single();
+            if *search_button_interaction == Interaction::Pressed {
+                commands
+                    .entity(*window)
+                    .insert(CursorIcon::Custom(CustomCursor::Image {
+                        handle: asset_server.load("images/fox-cursor.png"),
+                        hotspot: (20, 20),
+                    }));
+                next_search_state.set(match search_state.get() {
+                    SearchState::Reveal => SearchState::Catch,
+                    SearchState::Catch => SearchState::Reveal,
+                });
+            }
+        }
     }
     #[derive(Component)]
     struct CatchButtonText;
@@ -364,7 +400,11 @@ pub(crate) mod search_ui {
     pub struct UIPlugin;
     impl Plugin for UIPlugin {
         fn build(&self, app: &mut App) {
-            app.add_systems(OnEnter(AppState::Search), search_startup);
+            app.add_systems(OnEnter(AppState::Search), search_startup)
+                .add_systems(
+                    Update,
+                    CatchButton::system.run_if(in_state(AppState::Search)),
+                );
         }
     }
     #[allow(clippy::needless_pass_by_value)]

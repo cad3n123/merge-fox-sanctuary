@@ -1,3 +1,5 @@
+use std::sync::Mutex;
+
 use bevy::{
     app::{App, Plugin, Update},
     asset::{AssetServer, Assets},
@@ -20,17 +22,22 @@ use bevy::{
         view::Visibility,
     },
     sprite::{ColorMaterial, MeshMaterial2d, Sprite},
-    state::{condition::in_state, state::OnEnter},
+    state::{
+        app::AppExtStates,
+        condition::in_state,
+        state::{OnEnter, State, States},
+    },
     transform::components::Transform,
     utils::default,
 };
 use enum_map::Enum;
+use once_cell::sync::Lazy;
 use strum_macros::EnumString;
 
 use crate::{
     app_state::{AppState, AppStateSet},
     clickable::Clickable,
-    Size,
+    Money, Size,
 };
 
 #[derive(Component, Clone, Copy, Default)]
@@ -303,18 +310,26 @@ struct CellCoverNoMouseEventEvent(Entity);
 struct CellCoverHoverEvent(Entity);
 #[derive(Event, Debug)]
 struct CellCoverMouseupEvent(Entity);
+#[derive(States, Default, Debug, Hash, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SearchState {
+    #[default]
+    Reveal,
+    Catch,
+}
+static CATCH_PRICE: Lazy<Mutex<Money>> = Lazy::new(|| Mutex::new(Money::new(0, 0)));
 
 pub(crate) struct SearchPlugin;
 impl Plugin for SearchPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Level::default())
+            .init_state::<SearchState>()
             .add_event::<CellCoverNoMouseEventEvent>()
             .add_event::<CellCoverHoverEvent>()
             .add_event::<CellCoverMouseupEvent>()
             .add_systems(OnEnter(AppState::Search), search_startup.after(AppStateSet))
             .add_systems(
                 Update,
-                (no_mouse_event_cell, hover_cell, reveal_cell).run_if(in_state(AppState::Search)),
+                (no_mouse_event_cell, hover_cell, mouse_up_cell).run_if(in_state(AppState::Search)),
             );
     }
 }
@@ -360,8 +375,10 @@ fn hover_cell(
     }
 }
 #[allow(clippy::needless_pass_by_value)]
-fn reveal_cell(
+fn mouse_up_cell(
     mut commands: Commands,
+    search_state: Res<State<SearchState>>,
+    mut money: ResMut<Money>,
     mut cell_cover_event: EventReader<CellCoverMouseupEvent>,
     cell_covers_q: Query<(&Parent, Entity), With<CellCover>>,
     mut cells_q: Query<(&mut Cell, &Children)>,
@@ -378,6 +395,9 @@ fn reveal_cell(
                 }
             }
             commands.entity(cell_cover).despawn_recursive();
+            if *search_state.get() == SearchState::Catch {
+                *money -= CATCH_PRICE.lock().unwrap().clone();
+            }
         }
     }
 }

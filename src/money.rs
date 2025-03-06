@@ -73,6 +73,20 @@ impl SubAssign for Money {
         }
     }
 }
+impl SubAssign<&Self> for Money {
+    fn sub_assign(&mut self, rhs: &Self) {
+        if rhs.ge(self) {
+            self.dollars = Dollar(0);
+            self.cents = Cent(0);
+        } else if rhs.cents > self.cents {
+            self.dollars -= Dollar(1) + &rhs.dollars;
+            self.cents += Cent(100) - &rhs.cents;
+        } else {
+            self.dollars -= &rhs.dollars;
+            self.cents -= &rhs.cents;
+        }
+    }
+}
 impl PartialOrd for Money {
     fn lt(&self, other: &Self) -> bool {
         if self.dollars.lt(&other.dollars) {
@@ -167,8 +181,22 @@ impl Add for Dollar {
         result
     }
 }
+impl Add<&Self> for Dollar {
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self::Output {
+        let mut result = self;
+        result += rhs;
+        result
+    }
+}
 impl SubAssign for Dollar {
     fn sub_assign(&mut self, rhs: Self) {
+        self.0.sub_assign(rhs.0);
+    }
+}
+impl SubAssign<&Self> for Dollar {
+    fn sub_assign(&mut self, rhs: &Self) {
         self.0.sub_assign(rhs.0);
     }
 }
@@ -199,10 +227,24 @@ impl SubAssign for Cent {
         self.0.sub_assign(rhs.0);
     }
 }
+impl SubAssign<&Self> for Cent {
+    fn sub_assign(&mut self, rhs: &Self) {
+        self.0.sub_assign(rhs.0);
+    }
+}
 impl Sub for Cent {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
+        let mut result = self;
+        result -= rhs;
+        result
+    }
+}
+impl Sub<&Self> for Cent {
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self::Output {
         let mut result = self;
         result -= rhs;
         result
