@@ -42,11 +42,16 @@ impl MyVec2 for Vec2 {
 
 pub mod app_state;
 pub mod clickable;
+pub mod fox;
 pub mod fox_lot;
 pub mod money;
 pub mod search;
 pub mod ui;
 
+struct IntVec2 {
+    x: i32,
+    y: i32,
+}
 #[derive(Component)]
 struct Size(Vec2);
 impl Default for Size {

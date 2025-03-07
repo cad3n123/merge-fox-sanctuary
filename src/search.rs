@@ -35,9 +35,7 @@ use once_cell::sync::Lazy;
 use strum_macros::EnumString;
 
 use crate::{
-    app_state::{AppState, AppStateSet},
-    clickable::Clickable,
-    Money, Size,
+    app_state::{AppState, AppStateSet}, clickable::Clickable, fox::FoxSpecies, Money, Size
 };
 
 #[derive(Component, Clone, Copy, Default)]
@@ -178,29 +176,6 @@ impl CellCover {
         ));
     }
 }
-struct IntVec2 {
-    x: i32,
-    y: i32,
-}
-#[derive(Debug, Default, Clone, Copy, Enum)]
-enum FoxSpecies {
-    #[default]
-    Vulpes,
-    Corsac,
-}
-mod fox_species_statics {
-    use enum_map::{enum_map, EnumMap};
-    use once_cell::sync::Lazy;
-
-    use super::{FoxSpecies, IntVec2};
-
-    pub static FOX_SPECIES_LAYOUTS: Lazy<EnumMap<FoxSpecies, Vec<IntVec2>>> = Lazy::new(|| {
-        enum_map! {
-            FoxSpecies::Vulpes => vec![IntVec2 { x: 0, y: 1 }, IntVec2 { x: -1, y: 0 }, IntVec2 { x: 1, y: 0 }, IntVec2 { x: 0, y: -1 }], // TODO: Think of this
-            FoxSpecies::Corsac => vec![IntVec2 { x: 1, y: -1 }, IntVec2 { x: 2, y: -1 }, IntVec2 { x: 1, y: -2 }, IntVec2 { x: 2, y: -2 }]
-        }
-    });
-}
 #[derive(Debug, Default, Clone, Copy, Enum)]
 enum ObstacleType {
     #[default]
@@ -211,7 +186,9 @@ mod obstacle_statics {
     use enum_map::{enum_map, EnumMap};
     use once_cell::sync::Lazy;
 
-    use super::{IntVec2, ObstacleType};
+    use crate::IntVec2;
+
+    use super::ObstacleType;
 
     pub static OBSTACLE_LAYOUTS: Lazy<EnumMap<ObstacleType, Vec<IntVec2>>> = Lazy::new(|| {
         enum_map! {
@@ -227,15 +204,16 @@ mod cell_statics {
 
     use once_cell::sync::Lazy;
 
-    use super::{fox_species_statics, obstacle_statics, Cell, CellType};
+    use crate::fox::FOX_SPECIES_LAYOUTS;
+
+    use super::{obstacle_statics, Cell, CellType};
 
     pub static LEVEL_CELLS: Lazy<Vec<Vec<Vec<Cell>>>> = Lazy::new(|| {
         vec![cells_from_level_layout(&vec![
-            "C     ", //
-            "l     ", //
-            "s     ", //
-            "      ", //
-            "      ", //
+            "C   ", //
+            "l   ", //
+            "s   ", //
+            "    ", //
         ])]
     });
     fn cells_from_level_layout(level_layout: &Vec<&str>) -> Vec<Vec<Cell>> {
@@ -271,7 +249,7 @@ mod cell_statics {
                 let (cell, _is_foxable) = cell_cell.get();
                 if let Some(CellType::PawPrint(fox_species)) = &cell.cell_type {
                     let fox_species_layout =
-                        &fox_species_statics::FOX_SPECIES_LAYOUTS[*fox_species];
+                        &FOX_SPECIES_LAYOUTS[*fox_species];
                     let mut fox_locations: Vec<(usize, usize)> = vec![];
                     for int_vec2 in fox_species_layout {
                         let dest_x = x as i32 + int_vec2.x;

@@ -8,7 +8,7 @@ use bevy::{
         event::Event,
         query::With,
         schedule::{IntoSystemConfigs, SystemSet},
-        system::{Commands, Query},
+        system::{Commands, Query, Single},
         world::World,
     },
     input::{
@@ -113,14 +113,13 @@ impl Plugin for ClickablePlugin {
 #[allow(clippy::needless_pass_by_value)]
 fn hover(
     mut commands: Commands,
-    q_window: Query<&Window, With<PrimaryWindow>>,
-    q_camera: Query<(&Camera, &GlobalTransform)>,
+    window: Single<&Window, With<PrimaryWindow>>,
+    q_camera: Single<(&Camera, &GlobalTransform)>,
     mut clickables_q: Query<(Entity, &mut Clickable, &Size, &GlobalTransform)>,
 ) {
-    let (camera, camera_transform) = q_camera.single();
-    let window = q_window.single();
+    let (camera, camera_transform) = q_camera.into_inner();
 
-    if let Some(mouse_coordinates) = mouse_world_coordinates(window, camera, camera_transform) {
+    if let Some(mouse_coordinates) = mouse_world_coordinates(&window, camera, camera_transform) {
         for (entity, mut clickable, size, transform) in &mut clickables_q {
             if !clickable.active {
                 continue;
