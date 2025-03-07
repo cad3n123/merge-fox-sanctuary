@@ -7,7 +7,7 @@ use bevy::{
         entity::Entity,
         event::Event,
         query::With,
-        schedule::IntoSystemConfigs,
+        schedule::{IntoSystemConfigs, SystemSet},
         system::{Commands, Query},
         world::World,
     },
@@ -23,9 +23,8 @@ use bevy::{
 
 use crate::{mouse_world_coordinates, point_in_bounds, Size};
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub(crate) struct Hovered;
-type MouseEvent = Arc<dyn Fn(&mut Commands, Entity) + Send + Sync>;
 #[derive(Component, Clone)]
 #[require(Size, Transform)]
 pub(crate) struct Clickable {
@@ -92,14 +91,21 @@ enum Status {
     Hovered,
     MouseDown,
 }
+type MouseEvent = Arc<dyn Fn(&mut Commands, Entity) + Send + Sync>;
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct ClickableSet;
 pub struct ClickablePlugin;
 impl Plugin for ClickablePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
             (
-                (hover, mouse_down.run_if(input_pressed(MouseButton::Left))).chain(),
-                mouse_up.run_if(input_just_released(MouseButton::Left)),
+                (hover, mouse_down.run_if(input_pressed(MouseButton::Left)))
+                    .in_set(ClickableSet)
+                    .chain(),
+                mouse_up
+                    .run_if(input_just_released(MouseButton::Left))
+                    .in_set(ClickableSet),
             ),
         );
     }
@@ -143,8 +149,8 @@ fn hover(
                     if let Some(on_no_mouse_event) = &clickable.on_no_mouse_event {
                         (on_no_mouse_event)(&mut commands, entity);
                     }
+                    commands.entity(entity).remove::<Hovered>();
                 }
-                commands.entity(entity).remove::<Hovered>();
                 None
             }
         }
@@ -161,7 +167,6 @@ fn mouse_down(mut commands: Commands, mut clickables_q: Query<(Entity, &mut Clic
             .is_some_and(|status| status == Status::Hovered)
         {
             clickable.status = Some(Status::MouseDown);
-            commands.entity(entity).remove::<Hovered>();
             if let Some(on_mousedown) = &clickable.on_mousedown {
                 (on_mousedown)(&mut commands, entity);
             }
@@ -178,8 +183,7 @@ fn mouse_up(mut commands: Commands, mut clickables_q: Query<(Entity, &mut Clicka
             .status
             .is_some_and(|status| status == Status::MouseDown)
         {
-            clickable.status = None;
-            commands.entity(entity).remove::<Hovered>();
+            clickable.status = Some(Status::Hovered);
             if let Some(on_mouseup) = &clickable.on_mouseup {
                 (on_mouseup)(&mut commands, entity);
             }

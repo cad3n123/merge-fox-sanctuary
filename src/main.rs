@@ -54,7 +54,7 @@ impl Default for Size {
         Self(Vec2::ZERO)
     }
 }
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub(crate) struct FollowMouse {
     parent: Option<Entity>,
     previous_transform: Transform,
@@ -76,6 +76,7 @@ impl FollowMouse {
         }
     }
 }
+pub(crate) type Optional<'w, D, F = ()> = Option<Single<'w, D, F>>;
 
 fn main() {
     let mut app = App::new();
