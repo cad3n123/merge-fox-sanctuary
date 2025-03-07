@@ -23,9 +23,10 @@ use bevy::{
 
 use crate::{
     app_state::{AppState, Merge},
-    fox_lot::FoxLotPrice,
     ui::{MoneyContainer, RootTrait},
 };
+
+use super::fox_lot::FoxLotPrice;
 
 #[derive(Component)]
 struct Root;

@@ -18,7 +18,6 @@ use bevy::{
     DefaultPlugins,
 };
 use clickable::{Clickable, ClickablePlugin};
-use fox_lot::{FoxLot, FoxLotPlugin};
 use merge::MergePlugin;
 use money::Money;
 use search::SearchPlugin;
@@ -44,7 +43,6 @@ impl MyVec2 for Vec2 {
 pub mod app_state;
 pub mod clickable;
 pub mod fox;
-pub mod fox_lot;
 pub mod merge;
 pub mod money;
 pub mod search;
@@ -88,7 +86,6 @@ fn main() {
         AppStatePlugin,
         UIPlugin,
         ClickablePlugin,
-        FoxLotPlugin,
         MergePlugin,
         SearchPlugin,
     ));
@@ -108,7 +105,7 @@ fn startup(
 
     commands.spawn(Camera2d);
 
-    FoxLot::spawn_grid(&mut commands, &asset_server, -1..=1, -1..=1);
+    merge::fox_lot::FoxLot::spawn_grid(&mut commands, &asset_server, -1..=1, -1..=1);
 }
 fn mouse_world_coordinates(
     window: &Window,
