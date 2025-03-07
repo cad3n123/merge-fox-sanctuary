@@ -9,6 +9,7 @@ use bevy::{
         system::{Commands, Query, Res, ResMut, Single},
     },
     hierarchy::{BuildChildren, ChildBuild, ChildBuilder},
+    input::{common_conditions::input_just_released, keyboard::KeyCode},
     state::{
         condition::in_state,
         state::{NextState, OnEnter, State},
@@ -107,16 +108,16 @@ impl CatchButton {
 
         let search_button_interaction = button_interaction_q.single();
         if *search_button_interaction == Interaction::Pressed {
-            commands
-                .entity(*window)
-                .insert(CursorIcon::Custom(CustomCursor::Image {
-                    handle: asset_server.load("images/fox-cursor.png"),
-                    hotspot: (20, 20),
-                }));
-            next_search_state.set(match search_state.get() {
-                SearchState::Reveal => SearchState::Catch,
-                SearchState::Catch => SearchState::Reveal,
-            });
+            SearchState::set(
+                &mut commands,
+                &asset_server,
+                &mut next_search_state,
+                *window,
+                match search_state.get() {
+                    SearchState::Reveal => SearchState::Catch,
+                    SearchState::Catch => SearchState::Reveal,
+                },
+            );
         }
     }
 }
@@ -137,14 +138,33 @@ impl CatchButtonText {
 pub(super) struct UIPlugin;
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(AppState::Search), search_startup)
+        app.add_systems(OnEnter(AppState::Search), startup)
             .add_systems(
                 Update,
-                CatchButton::system.run_if(in_state(AppState::Search)),
+                (
+                    CatchButton::system,
+                    set_search_state_reveal.run_if(input_just_released(KeyCode::Escape)),
+                )
+                    .run_if(in_state(AppState::Search)),
             );
     }
 }
 #[allow(clippy::needless_pass_by_value)]
-pub(super) fn search_startup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
     Root::spawn(&mut commands, &asset_server);
+}
+#[allow(clippy::needless_pass_by_value)]
+fn set_search_state_reveal(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut next_search_state: ResMut<NextState<SearchState>>,
+    window: Single<Entity, With<Window>>,
+) {
+    SearchState::set(
+        &mut commands,
+        &asset_server,
+        &mut next_search_state,
+        *window,
+        SearchState::Reveal,
+    );
 }
