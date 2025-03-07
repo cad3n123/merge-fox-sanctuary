@@ -19,9 +19,10 @@ use bevy::{
 };
 use clickable::{Clickable, ClickablePlugin};
 use fox_lot::{FoxLot, FoxLotPlugin};
+use merge::MergePlugin;
 use money::Money;
 use search::SearchPlugin;
-use ui::{merge_ui, search_ui, UIPlugin};
+use ui::UIPlugin;
 
 trait MyVec2 {
     fn into_vec3_with_z(self, z: f32) -> Vec3;
@@ -44,6 +45,7 @@ pub mod app_state;
 pub mod clickable;
 pub mod fox;
 pub mod fox_lot;
+pub mod merge;
 pub mod money;
 pub mod search;
 pub mod ui;
@@ -85,10 +87,9 @@ fn main() {
         DefaultPlugins,
         AppStatePlugin,
         UIPlugin,
-        merge_ui::UIPlugin,
-        search_ui::UIPlugin,
         ClickablePlugin,
         FoxLotPlugin,
+        MergePlugin,
         SearchPlugin,
     ));
     app.insert_resource(Money::default());
