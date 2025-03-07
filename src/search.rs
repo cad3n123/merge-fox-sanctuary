@@ -35,7 +35,10 @@ use once_cell::sync::Lazy;
 use strum_macros::EnumString;
 
 use crate::{
-    app_state::{AppState, AppStateSet}, clickable::Clickable, fox::FoxSpecies, Money, Size
+    app_state::{AppState, AppStateSet},
+    clickable::Clickable,
+    fox::FoxSpecies,
+    Money, Size,
 };
 
 #[derive(Component, Clone, Copy, Default)]
@@ -96,10 +99,10 @@ impl Cell {
         }
     }
 }
-impl From<char> for Cell {
-    fn from(character: char) -> Self {
+impl From<ObstacleChar> for Cell {
+    fn from(character: ObstacleChar) -> Self {
         Self {
-            cell_type: match character {
+            cell_type: match character.0 {
                 // Fox Species
                 'V' => Some(CellType::PawPrint(FoxSpecies::Vulpes)),
                 'C' => Some(CellType::PawPrint(FoxSpecies::Corsac)),
@@ -112,6 +115,20 @@ impl From<char> for Cell {
         }
     }
 }
+impl From<FoxChar> for Cell {
+    fn from(character: FoxChar) -> Self {
+        Self {
+            cell_type: match character.0 {
+                'V' => Some(CellType::Fox(FoxSpecies::Vulpes)),
+                'C' => Some(CellType::Fox(FoxSpecies::Corsac)),
+                _ => None,
+            },
+            ..default()
+        }
+    }
+}
+struct ObstacleChar(char);
+struct FoxChar(char);
 #[derive(Component, Debug, EnumString, Clone, Copy)]
 enum CellType {
     PawPrint(FoxSpecies),
@@ -182,21 +199,6 @@ enum ObstacleType {
     Stones,
     Log,
 }
-mod obstacle_statics {
-    use enum_map::{enum_map, EnumMap};
-    use once_cell::sync::Lazy;
-
-    use crate::IntVec2;
-
-    use super::ObstacleType;
-
-    pub static OBSTACLE_LAYOUTS: Lazy<EnumMap<ObstacleType, Vec<IntVec2>>> = Lazy::new(|| {
-        enum_map! {
-            ObstacleType::Stones => vec![IntVec2 { x: 0, y: 1 }, IntVec2 { x: -1, y: 0 }, IntVec2 { x: 1, y: 0 }, IntVec2 { x: 0, y: -1 }],
-            ObstacleType::Log => vec![IntVec2 { x: -2, y: 0 }, IntVec2 { x: -1, y: 0 }, IntVec2 { x: 1, y: 0 }, IntVec2 { x: 2, y: 0 }]
-        }
-    });
-}
 #[derive(Resource, Default)]
 struct Level(usize);
 mod cell_statics {
@@ -204,77 +206,40 @@ mod cell_statics {
 
     use once_cell::sync::Lazy;
 
-    use crate::fox::FOX_SPECIES_LAYOUTS;
-
-    use super::{obstacle_statics, Cell, CellType};
+    use super::{Cell, FoxChar, ObstacleChar};
 
     pub static LEVEL_CELLS: Lazy<Vec<Vec<Vec<Cell>>>> = Lazy::new(|| {
-        vec![cells_from_level_layout(&vec![
-            "C   ", //
-            "l   ", //
-            "s   ", //
-            "    ", //
-        ])]
+        vec![cells_from_level_layout(
+            &vec![
+                "C   ", //
+                "l   ", //
+                " s  ", //
+                "    ", //
+            ],
+            &vec![
+                "    ", //
+                " C  ", //
+                "    ", //
+                "    ", //
+            ],
+        )]
     });
-    fn cells_from_level_layout(level_layout: &Vec<&str>) -> Vec<Vec<Cell>> {
+    fn cells_from_level_layout(obstacles: &Vec<&str>, foxes: &Vec<&str>) -> Vec<Vec<Cell>> {
         let mut cells: Vec<Vec<cell::Cell<(Cell, bool)>>> = vec![];
-        for row in level_layout {
+        for (obstacle_row, fox_row) in obstacles.iter().zip(foxes) {
             let mut cell_row = vec![];
-            for (x, character) in row.chars().enumerate() {
-                let mut cell = Cell::from(character);
+            for (x, (obstacle_character, fox_character)) in
+                obstacle_row.chars().zip(fox_row.chars()).enumerate()
+            {
+                let mut cell = if fox_character == ' ' {
+                    Cell::from(ObstacleChar(obstacle_character))
+                } else {
+                    Cell::from(FoxChar(fox_character))
+                };
                 cell.revealed = x == 0;
                 cell_row.push(cell::Cell::from((cell, true)));
             }
             cells.push(cell_row);
-        }
-        for (y, row) in cells.iter().enumerate() {
-            for (x, cell_cell) in row.iter().enumerate() {
-                let (cell, _is_foxable) = cell_cell.get();
-                if let Some(CellType::Obstacle(obstacle)) = &cell.cell_type {
-                    let obstacle_layout = &obstacle_statics::OBSTACLE_LAYOUTS[*obstacle];
-                    for int_vec2 in obstacle_layout {
-                        let dest_x = x as i32 + int_vec2.x;
-                        let dest_y = y as i32 - int_vec2.y;
-                        if let Some(dest_row) = cells.get(dest_y as usize) {
-                            if let Some(dest_cell_cell) = dest_row.get(dest_x as usize) {
-                                dest_cell_cell.set((dest_cell_cell.get().0, false));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        for (y, row) in cells.iter().enumerate() {
-            for (x, cell_cell) in row.iter().enumerate() {
-                let (cell, _is_foxable) = cell_cell.get();
-                if let Some(CellType::PawPrint(fox_species)) = &cell.cell_type {
-                    let fox_species_layout =
-                        &FOX_SPECIES_LAYOUTS[*fox_species];
-                    let mut fox_locations: Vec<(usize, usize)> = vec![];
-                    for int_vec2 in fox_species_layout {
-                        let dest_x = x as i32 + int_vec2.x;
-                        let dest_y = y as i32 - int_vec2.y;
-                        if let Some(dest_row) = cells.get(dest_y as usize) {
-                            if let Some(dest_cell_cell) = dest_row.get(dest_x as usize) {
-                                let (dest_cell, dest_is_foxable) = dest_cell_cell.get();
-                                if dest_is_foxable && dest_cell.cell_type.is_none() {
-                                    fox_locations.push((dest_x as usize, dest_y as usize));
-                                }
-                            }
-                        }
-                    }
-                    assert!(
-                        fox_locations.len() <= 1,
-                        "Level incorrectly made:\n{level_layout:?}"
-                    );
-                    if let Some(fox_location) = fox_locations.first() {
-                        let cell_cell = &cells[fox_location.1][fox_location.0];
-                        let (mut cell, is_foxable) = cell_cell.get();
-                        cell.cell_type = Some(CellType::Fox(*fox_species));
-                        cell_cell.set((cell, is_foxable));
-                    }
-                }
-            }
         }
         cells
             .iter()

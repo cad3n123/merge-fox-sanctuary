@@ -48,10 +48,6 @@ pub mod money;
 pub mod search;
 pub mod ui;
 
-struct IntVec2 {
-    x: i32,
-    y: i32,
-}
 #[derive(Component)]
 struct Size(Vec2);
 impl Default for Size {

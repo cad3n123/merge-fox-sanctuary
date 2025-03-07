@@ -1,12 +1,10 @@
-use std::{rc::Rc, sync::Arc};
+use std::sync::Arc;
 
-use enum_map::{enum_map, Enum, EnumMap};
+use enum_map::Enum;
 use once_cell::sync::Lazy;
 use rand::distr::{Distribution, StandardUniform};
 use strum::EnumCount;
 use strum_macros::{EnumCount, FromRepr};
-
-use crate::IntVec2;
 
 macro_rules! impl_enum_distribution {
     ($t:ty) => {
@@ -25,12 +23,6 @@ pub(crate) enum FoxSpecies {
     Vulpes,
     Corsac,
 }
-pub(crate) static FOX_SPECIES_LAYOUTS: Lazy<EnumMap<FoxSpecies, Vec<IntVec2>>> = Lazy::new(|| {
-    enum_map! {
-        FoxSpecies::Vulpes => vec![IntVec2 { x: 0, y: 1 }, IntVec2 { x: -1, y: 0 }, IntVec2 { x: 1, y: 0 }, IntVec2 { x: 0, y: -1 }], // TODO: Think of this
-        FoxSpecies::Corsac => vec![IntVec2 { x: 1, y: -1 }, IntVec2 { x: 2, y: -1 }, IntVec2 { x: 1, y: -2 }, IntVec2 { x: 2, y: -2 }]
-    }
-});
 impl_enum_distribution!(FoxSpecies);
 #[derive(Clone)]
 struct Name(Arc<str>);
