@@ -35,7 +35,7 @@ use strum_macros::EnumString;
 use crate::{
     app_state::{AppState, AppStateSet},
     fox::FoxSpecies,
-    search::animation::{DisappearingMode, Fade, FadeMode},
+    search::animation::{Fade, FadeEndMode, FadeMode, FadeSpeed},
     Clickable, Money, Size,
 };
 
@@ -342,7 +342,9 @@ fn reveal_cell(
                             if *search_state == SearchState::Catch {
                                 fox_caught_event.send(FoxCaughtEvent(*fox_species));
                                 commands.entity(cell_type_entity).insert(Fade::new(
-                                    FadeMode::Disappearing(DisappearingMode::Delete),
+                                    FadeMode::Disappearing,
+                                    FadeSpeed::Medium,
+                                    Some(FadeEndMode::Delete),
                                 ));
                             }
                             println!(

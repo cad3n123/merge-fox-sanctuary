@@ -34,7 +34,7 @@ use crate::{
 };
 
 use super::{
-    animation::{Fade, FadeMode},
+    animation::{Fade, FadeEndMode, FadeMode, FadeSpeed},
     cell::{Cell, FoxCaughtEvent},
     CatchPrice,
 };
@@ -187,7 +187,11 @@ impl CollectedFoxUI {
     fn spawn(fox_collection_ui: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>, fox: Fox) {
         fox_collection_ui.spawn((
             Self(fox),
-            Fade::new(FadeMode::Appearing),
+            Fade::new(
+                FadeMode::Appearing,
+                FadeSpeed::Medium,
+                Some(FadeEndMode::Bounce),
+            ),
             ImageNode {
                 image: asset_server.load("images/Fox.png"),
                 color: Color::srgba(1., 1., 1., 0.),
