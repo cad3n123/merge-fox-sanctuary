@@ -1,7 +1,7 @@
 use bevy::{
     app::{App, Plugin, Update},
     asset::AssetServer,
-    color::Color,
+    color::{palettes::tailwind::ORANGE_300, Color},
     ecs::{
         component::Component,
         entity::Entity,
@@ -12,15 +12,17 @@ use bevy::{
     },
     hierarchy::{BuildChildren, ChildBuild, ChildBuilder},
     input::{common_conditions::input_just_released, keyboard::KeyCode},
+    math::{Vec2, Vec3Swizzles},
     state::{
         condition::in_state,
         state::{NextState, OnEnter, State},
     },
-    text::TextFont,
+    text::{TextColor, TextFont},
+    transform::components::GlobalTransform,
     ui::{
         widget::{Button, ImageNode, Text},
-        AlignItems, AlignSelf, FlexDirection, FlexWrap, Interaction, JustifyContent, JustifySelf,
-        Node, UiRect, Val,
+        AlignItems, AlignSelf, BackgroundColor, FlexDirection, FlexWrap, Interaction,
+        JustifyContent, JustifySelf, Node, UiRect, Val,
     },
     utils::default,
     window::Window,
@@ -190,8 +192,9 @@ impl CollectedFoxUI {
             Fade::new(
                 FadeMode::Appearing,
                 FadeSpeed::Medium,
-                Some(FadeEndMode::Bounce),
+                Some(FadeEndMode::BounceRepeat),
             ),
+            Button,
             ImageNode {
                 image: asset_server.load("images/Fox.png"),
                 color: Color::srgba(1., 1., 1., 0.),
@@ -203,6 +206,60 @@ impl CollectedFoxUI {
                 ..default()
             },
         ));
+    }
+    #[allow(clippy::needless_pass_by_value)]
+    fn hover(
+        mut commands: Commands,
+        mut collected_fox_gtransforms_q: Query<
+            (&Self, &GlobalTransform, &Interaction, Option<&mut Fade>),
+            Changed<Interaction>,
+        >,
+    ) {
+        for (collected_fox, collected_fox_gtransform, interaction, fade) in
+            &mut collected_fox_gtransforms_q
+        {
+            if *interaction == Interaction::Hovered {
+                CollectedFoxTooltip::spawn(
+                    &mut commands,
+                    collected_fox_gtransform.translation().xy(),
+                    &collected_fox.0,
+                );
+                if let Some(mut fade) = fade {
+                    fade.end_mode = if fade.mode == FadeMode::Appearing {
+                        None
+                    } else {
+                        Some(FadeEndMode::BounceOnce(Box::new(None)))
+                    }
+                }
+            }
+        }
+    }
+}
+#[derive(Component)]
+struct CollectedFoxTooltip;
+impl CollectedFoxTooltip {
+    fn spawn(commands: &mut Commands, translation: Vec2, fox: &Fox) {
+        commands
+            .spawn((
+                Self,
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    margin: UiRect::top(Val::Px(translation.y)).with_left(Val::Px(translation.x)),
+                    padding: UiRect::all(Val::Px(10.)),
+                    ..default()
+                },
+                BackgroundColor::from(ORANGE_300),
+            ))
+            .with_children(|parent| {
+                for text in &[
+                    fox.name().to_string(),
+                    format!("Species: {}", fox.species()),
+                    format!("Age: {}", fox.age()),
+                    format!("Primary Problem: {}", fox.primary_problem()),
+                ] {
+                    parent.spawn((Text::new(text), TextColor::BLACK));
+                }
+            });
     }
 }
 
@@ -217,6 +274,7 @@ impl Plugin for UIPlugin {
                     CatchPriceUI::system,
                     set_search_state_reveal.run_if(input_just_released(KeyCode::Escape)),
                     on_fox_caught,
+                    CollectedFoxUI::hover,
                 )
                     .run_if(in_state(AppState::Search)),
             );

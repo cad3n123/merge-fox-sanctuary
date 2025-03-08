@@ -41,9 +41,9 @@ impl Fadable for ImageNode {
 }
 #[derive(Component)]
 pub(crate) struct Fade {
-    mode: FadeMode,
+    pub(crate) mode: FadeMode,
     speed: FadeSpeed,
-    end_mode: Option<FadeEndMode>,
+    pub(crate) end_mode: Option<FadeEndMode>,
     lucency: u32,
 }
 impl Fade {
@@ -81,13 +81,19 @@ impl Fade {
                     || fade.mode == FadeMode::Disappearing && fade.lucency == 0
                 {
                     let mut entity_commands = commands.entity(entity);
-                    if let Some(end_mode) = fade.end_mode {
+                    if let Some(ref end_mode) = fade.end_mode {
                         match end_mode {
                             FadeEndMode::Delete => {
                                 entity_commands.remove::<Self>();
                                 entity_commands.despawn_recursive();
                             }
-                            FadeEndMode::Bounce => fade.mode.toggle(),
+                            FadeEndMode::BounceRepeat => {
+                                fade.mode.toggle();
+                            }
+                            FadeEndMode::BounceOnce(new_fade_end_mode) => {
+                                fade.end_mode = *new_fade_end_mode.clone();
+                                fade.mode.toggle();
+                            }
                         }
                     } else {
                         entity_commands.remove::<Self>();
@@ -122,10 +128,11 @@ impl FadeMode {
         }
     }
 }
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) enum FadeEndMode {
     Delete,
-    Bounce,
+    BounceRepeat,
+    BounceOnce(Box<Option<FadeEndMode>>),
 }
 #[derive(Resource)]
 struct FadeTimer {

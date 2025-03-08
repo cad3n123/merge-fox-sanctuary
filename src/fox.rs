@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt::Display, sync::Arc};
 
 use enum_map::Enum;
 use once_cell::sync::Lazy;
@@ -24,14 +24,25 @@ pub(crate) enum FoxSpecies {
     Corsac,
 }
 impl_enum_distribution!(FoxSpecies);
+impl Display for FoxSpecies {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
 #[derive(Debug, Clone)]
-struct Name(Arc<str>);
+pub(crate) struct Name(Arc<str>);
+impl Display for Name {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 static POSSIBLE_NAMES: Lazy<Vec<Name>> = Lazy::new(|| {
     vec![
         Name(Arc::from("Caden")),
         Name(Arc::from("Kylie")),
         Name(Arc::from("Red")),
         Name(Arc::from("Crash")),
+        Name(Arc::from("Bonzo")),
         Name(Arc::from("Rusty")),
         Name(Arc::from("Ember")),
         Name(Arc::from("Fennec")),
@@ -135,45 +146,71 @@ impl Distribution<Name> for StandardUniform {
         POSSIBLE_NAMES[rng.random_range(0..POSSIBLE_NAMES.len())].clone()
     }
 }
-#[derive(Debug)]
-struct Age(u32);
+#[derive(Debug, Clone)]
+pub(crate) struct Age(u32);
 impl Age {
-    const MAX_RANDOM_AGE: Self = Self(3);
+    const MAX_RANDOM_AGE: Self = Self(6);
+}
+impl Display for Age {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} year{} old",
+            self.0,
+            if self.0 == 1 { "" } else { "s" }
+        )
+    }
 }
 impl Distribution<Age> for StandardUniform {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Age {
         Age(rng.random_range(0..Age::MAX_RANDOM_AGE.0))
     }
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Fox {
     species: FoxSpecies,
     name: Name,
     age: Age,
-    primary_injury: Injury,
-    secondary_injury: Injury,
+    primary_problem: Problem,
+    secondary_problem: Problem,
 }
 impl Fox {
     pub(crate) fn new_random(species: FoxSpecies) -> Self {
-        let primary_injury: Injury = rand::random();
+        let primary_problem: Problem = rand::random();
         Self {
             species,
             name: rand::random(),
             age: rand::random(),
-            primary_injury,
-            secondary_injury: {
-                let mut secondary_injury: Injury = rand::random();
-                while secondary_injury == primary_injury {
-                    secondary_injury = rand::random();
+            primary_problem,
+            secondary_problem: {
+                let mut secondary_problem: Problem = rand::random();
+                while secondary_problem == primary_problem {
+                    secondary_problem = rand::random();
                 }
-                secondary_injury
+                secondary_problem
             },
         }
+    }
+
+    pub(crate) const fn name(&self) -> &Name {
+        &self.name
+    }
+
+    pub(crate) const fn age(&self) -> &Age {
+        &self.age
+    }
+
+    pub(crate) const fn primary_problem(&self) -> Problem {
+        self.primary_problem
+    }
+
+    pub(crate) const fn species(&self) -> FoxSpecies {
+        self.species
     }
 }
 #[derive(Debug, FromRepr, EnumCount, PartialEq, Eq, Clone, Copy)]
 #[repr(u32)]
-enum Injury {
+pub(crate) enum Problem {
     Malnourished,
     FracturedBone,
     Parasite,
@@ -181,4 +218,20 @@ enum Injury {
     Trauma,
     Poisoned,
 }
-impl_enum_distribution!(Injury);
+impl Display for Problem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Malnourished => "Malnourished",
+                Self::FracturedBone => "Fractured Bone",
+                Self::Parasite => "Parasite",
+                Self::Disease => "Disease",
+                Self::Trauma => "Trauma",
+                Self::Poisoned => "Poisoned",
+            }
+        )
+    }
+}
+impl_enum_distribution!(Problem);
