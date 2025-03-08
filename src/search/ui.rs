@@ -10,7 +10,7 @@ use bevy::{
         schedule::IntoSystemConfigs,
         system::{Commands, Query, Res, ResMut, Single},
     },
-    hierarchy::{BuildChildren, ChildBuild, ChildBuilder},
+    hierarchy::{BuildChildren, ChildBuild, ChildBuilder, DespawnRecursiveExt},
     input::{common_conditions::input_just_released, keyboard::KeyCode},
     math::{Vec2, Vec3Swizzles},
     state::{
@@ -214,6 +214,7 @@ impl CollectedFoxUI {
             (&Self, &GlobalTransform, &Interaction, Option<&mut Fade>),
             Changed<Interaction>,
         >,
+        mut collected_fox_tooltips_q: Query<Entity, With<CollectedFoxTooltip>>,
     ) {
         for (collected_fox, collected_fox_gtransform, interaction, fade) in
             &mut collected_fox_gtransforms_q
@@ -231,6 +232,21 @@ impl CollectedFoxUI {
                         Some(FadeEndMode::BounceOnce(Box::new(None)))
                     }
                 }
+            }
+        }
+    }
+    #[allow(clippy::needless_pass_by_value)]
+    fn no_mouse(
+        mut commands: Commands,
+        collected_fox_interactions_q: Query<&Interaction, Changed<Interaction>>,
+        collected_fox_tooltips_q: Query<Entity, With<CollectedFoxTooltip>>,
+    ) {
+        if collected_fox_interactions_q
+            .iter()
+            .any(|collected_fox_interaction| *collected_fox_interaction == Interaction::None)
+        {
+            for collected_fox_tooltip in &collected_fox_tooltips_q {
+                commands.entity(collected_fox_tooltip).despawn_recursive();
             }
         }
     }
@@ -275,6 +291,7 @@ impl Plugin for UIPlugin {
                     set_search_state_reveal.run_if(input_just_released(KeyCode::Escape)),
                     on_fox_caught,
                     CollectedFoxUI::hover,
+                    CollectedFoxUI::no_mouse,
                 )
                     .run_if(in_state(AppState::Search)),
             );
