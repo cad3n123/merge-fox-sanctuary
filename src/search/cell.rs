@@ -36,7 +36,7 @@ use crate::{
     Clickable, Money, Size,
 };
 
-use super::{Level, SearchState, CATCH_PRICE};
+use super::{Level, SearchState, TotalFoxes, CATCH_PRICE};
 
 #[derive(Component, Clone, Copy, Default)]
 struct Cell {
@@ -75,8 +75,8 @@ impl Cell {
         meshes: &mut ResMut<Assets<Mesh>>,
         materials: &mut ResMut<Assets<ColorMaterial>>,
         level: &Res<Level>,
-    ) {
-        let cells = &cell_statics::LEVEL_CELLS[level.0];
+    ) -> TotalFoxes {
+        let (cells, total_foxes) = &cell_statics::LEVEL_CELLS[level.0];
         let height = cells.len();
         let start_y = (height - 1) as f32 / 2.;
         for (y, row) in cells.iter().enumerate() {
@@ -94,6 +94,7 @@ impl Cell {
                 );
             }
         }
+        *total_foxes
     }
 }
 impl From<ObstacleChar> for Cell {
@@ -201,9 +202,11 @@ mod cell_statics {
 
     use once_cell::sync::Lazy;
 
+    use crate::search::TotalFoxes;
+
     use super::{Cell, FoxChar, ObstacleChar};
 
-    pub static LEVEL_CELLS: Lazy<Vec<Vec<Vec<Cell>>>> = Lazy::new(|| {
+    pub static LEVEL_CELLS: Lazy<Vec<(Vec<Vec<Cell>>, TotalFoxes)>> = Lazy::new(|| {
         vec![cells_from_level_layout(
             &vec![
                 "C   ", //
@@ -219,7 +222,11 @@ mod cell_statics {
             ],
         )]
     });
-    fn cells_from_level_layout(obstacles: &Vec<&str>, foxes: &Vec<&str>) -> Vec<Vec<Cell>> {
+    fn cells_from_level_layout(
+        obstacles: &Vec<&str>,
+        foxes: &Vec<&str>,
+    ) -> (Vec<Vec<Cell>>, TotalFoxes) {
+        let mut total_foxes = TotalFoxes(0);
         let mut cells: Vec<Vec<cell::Cell<(Cell, bool)>>> = vec![];
         for (obstacle_row, fox_row) in obstacles.iter().zip(foxes) {
             let mut cell_row = vec![];
@@ -229,6 +236,7 @@ mod cell_statics {
                 let mut cell = if fox_character == ' ' {
                     Cell::from(ObstacleChar(obstacle_character))
                 } else {
+                    total_foxes.0 += 1;
                     Cell::from(FoxChar(fox_character))
                 };
                 cell.revealed = x == 0;
@@ -236,10 +244,13 @@ mod cell_statics {
             }
             cells.push(cell_row);
         }
-        cells
-            .iter()
-            .map(|row| row.iter().map(|cell_cell| cell_cell.get().0).collect())
-            .collect()
+        (
+            cells
+                .iter()
+                .map(|row| row.iter().map(|cell_cell| cell_cell.get().0).collect())
+                .collect(),
+            total_foxes,
+        )
     }
 }
 #[derive(Event, Debug)]
@@ -258,7 +269,7 @@ impl Plugin for CellPlugin {
             .add_systems(OnEnter(AppState::Search), startup.after(AppStateSet))
             .add_systems(
                 Update,
-                (no_mouse_event_cell, hover_cell, mouse_up_cell).run_if(in_state(AppState::Search)),
+                (no_mouse_event_cell, hover_cell, reveal_cell).run_if(in_state(AppState::Search)),
             );
     }
 }
@@ -269,8 +280,9 @@ fn startup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     level: Res<Level>,
+    mut total_foxes: ResMut<TotalFoxes>,
 ) {
-    Cell::spawn_level(
+    *total_foxes = Cell::spawn_level(
         &mut commands,
         &asset_server,
         &mut meshes,
@@ -303,27 +315,40 @@ fn hover_cell(
     }
 }
 #[allow(clippy::needless_pass_by_value)]
-fn mouse_up_cell(
+fn reveal_cell(
     mut commands: Commands,
     search_state: Res<State<SearchState>>,
     mut money: ResMut<Money>,
     mut cell_cover_event: EventReader<CellCoverMouseupEvent>,
     cell_covers_q: Query<(&Parent, Entity), With<CellCover>>,
     mut cells_q: Query<(&mut Cell, &Children)>,
-    mut cell_types_q: Query<&mut Visibility, With<CellType>>,
+    mut cell_types_q: Query<(&CellType, &mut Visibility)>,
 ) {
+    let search_state = search_state.get();
     for ev in cell_cover_event.read() {
         if let Ok((cell_cover_parent, cell_cover)) = cell_covers_q.get(ev.0) {
             if let Ok((mut cell, cell_children)) = cells_q.get_mut(cell_cover_parent.get()) {
                 cell.revealed = true;
                 for cell_child in cell_children {
-                    if let Ok(mut cell_type) = cell_types_q.get_mut(*cell_child) {
-                        *cell_type = Visibility::Visible;
+                    if let Ok((cell_type, mut cell_type_visibility)) =
+                        cell_types_q.get_mut(*cell_child)
+                    {
+                        *cell_type_visibility = Visibility::Visible;
+                        if let CellType::Fox(fox_species) = cell_type {
+                            println!(
+                                "{} a {:?}",
+                                match *search_state {
+                                    SearchState::Reveal => "Scared away",
+                                    SearchState::Catch => "Caught",
+                                },
+                                fox_species
+                            );
+                        }
                     }
                 }
             }
             commands.entity(cell_cover).despawn_recursive();
-            if *search_state.get() == SearchState::Catch {
+            if *search_state == SearchState::Catch {
                 *money -= CATCH_PRICE.lock().unwrap().clone();
             }
         }

@@ -25,6 +25,8 @@ pub mod ui;
 
 #[derive(Resource, Default)]
 pub(crate) struct Level(usize);
+#[derive(Resource, Default, Debug, Clone, Copy)]
+pub(crate) struct TotalFoxes(u32);
 #[derive(States, Default, Debug, Hash, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SearchState {
     #[default]
@@ -57,6 +59,7 @@ impl Plugin for SearchPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((UIPlugin, CellPlugin))
             .insert_resource(Level::default())
+            .insert_resource(TotalFoxes::default())
             .init_state::<SearchState>();
     }
 }
