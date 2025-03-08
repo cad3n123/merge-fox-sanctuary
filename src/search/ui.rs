@@ -6,7 +6,7 @@ use bevy::{
         entity::Entity,
         query::{Changed, With},
         schedule::IntoSystemConfigs,
-        system::{Commands, Populated, Res, ResMut, Single},
+        system::{Commands, Query, Res, ResMut, Single},
     },
     hierarchy::{BuildChildren, ChildBuild, ChildBuilder},
     input::{common_conditions::input_just_released, keyboard::KeyCode},
@@ -148,10 +148,7 @@ impl CatchButton {
 struct CatchPriceUI;
 impl CatchPriceUI {
     #[allow(clippy::needless_pass_by_value)]
-    fn system(
-        catch_price: Res<CatchPrice>,
-        mut catch_price_uis_q: Populated<&mut Text, With<Self>>,
-    ) {
+    fn system(catch_price: Res<CatchPrice>, mut catch_price_uis_q: Query<&mut Text, With<Self>>) {
         for mut catch_price_ui in &mut catch_price_uis_q {
             *catch_price_ui = Text::from(catch_price.0.dollars_string());
         }

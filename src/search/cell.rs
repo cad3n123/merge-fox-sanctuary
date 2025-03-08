@@ -11,7 +11,7 @@ use bevy::{
         event::{Event, EventReader},
         query::With,
         schedule::IntoSystemConfigs,
-        system::{Commands, Query, Res, ResMut},
+        system::{Commands, Query, Res, ResMut, SystemParam},
     },
     hierarchy::{BuildChildren, ChildBuild, ChildBuilder, Children, DespawnRecursiveExt, Parent},
     math::{primitives::Rectangle, Vec2, Vec3},
@@ -28,6 +28,8 @@ use bevy::{
     utils::default,
 };
 use enum_map::Enum;
+use once_cell::sync::Lazy;
+use std::cell;
 use strum_macros::EnumString;
 
 use crate::{
@@ -76,7 +78,7 @@ impl Cell {
         materials: &mut ResMut<Assets<ColorMaterial>>,
         level: &Res<Level>,
     ) -> TotalFoxes {
-        let (cells, total_foxes) = &cell_statics::LEVEL_CELLS[level.0];
+        let (cells, total_foxes) = &LEVEL_CELLS[level.0];
         let height = cells.len();
         let start_y = (height - 1) as f32 / 2.;
         for (y, row) in cells.iter().enumerate() {
@@ -197,68 +199,65 @@ enum ObstacleType {
     Stones,
     Log,
 }
-mod cell_statics {
-    use std::cell;
-
-    use once_cell::sync::Lazy;
-
-    use crate::search::TotalFoxes;
-
-    use super::{Cell, FoxChar, ObstacleChar};
-
-    pub static LEVEL_CELLS: Lazy<Vec<(Vec<Vec<Cell>>, TotalFoxes)>> = Lazy::new(|| {
-        vec![cells_from_level_layout(
-            &vec![
-                "C   ", //
-                "l   ", //
-                " s  ", //
-                "    ", //
-            ],
-            &vec![
-                "    ", //
-                " C  ", //
-                "    ", //
-                "    ", //
-            ],
-        )]
-    });
-    fn cells_from_level_layout(
-        obstacles: &Vec<&str>,
-        foxes: &Vec<&str>,
-    ) -> (Vec<Vec<Cell>>, TotalFoxes) {
-        let mut total_foxes = TotalFoxes(0);
-        let mut cells: Vec<Vec<cell::Cell<(Cell, bool)>>> = vec![];
-        for (obstacle_row, fox_row) in obstacles.iter().zip(foxes) {
-            let mut cell_row = vec![];
-            for (x, (obstacle_character, fox_character)) in
-                obstacle_row.chars().zip(fox_row.chars()).enumerate()
-            {
-                let mut cell = if fox_character == ' ' {
-                    Cell::from(ObstacleChar(obstacle_character))
-                } else {
-                    total_foxes.0 += 1;
-                    Cell::from(FoxChar(fox_character))
-                };
-                cell.revealed = x == 0;
-                cell_row.push(cell::Cell::from((cell, true)));
-            }
-            cells.push(cell_row);
+static LEVEL_CELLS: Lazy<Vec<(Vec<Vec<Cell>>, TotalFoxes)>> = Lazy::new(|| {
+    vec![cells_from_level_layout(
+        &vec![
+            "C   ", //
+            "l   ", //
+            " s  ", //
+            "    ", //
+        ],
+        &vec![
+            "    ", //
+            " C  ", //
+            "    ", //
+            "    ", //
+        ],
+    )]
+});
+fn cells_from_level_layout(
+    obstacles: &Vec<&str>,
+    foxes: &Vec<&str>,
+) -> (Vec<Vec<Cell>>, TotalFoxes) {
+    let mut total_foxes = TotalFoxes(0);
+    let mut cells: Vec<Vec<cell::Cell<(Cell, bool)>>> = vec![];
+    for (obstacle_row, fox_row) in obstacles.iter().zip(foxes) {
+        let mut cell_row = vec![];
+        for (x, (obstacle_character, fox_character)) in
+            obstacle_row.chars().zip(fox_row.chars()).enumerate()
+        {
+            let mut cell = if fox_character == ' ' {
+                Cell::from(ObstacleChar(obstacle_character))
+            } else {
+                total_foxes.0 += 1;
+                Cell::from(FoxChar(fox_character))
+            };
+            cell.revealed = x == 0;
+            cell_row.push(cell::Cell::from((cell, true)));
         }
-        (
-            cells
-                .iter()
-                .map(|row| row.iter().map(|cell_cell| cell_cell.get().0).collect())
-                .collect(),
-            total_foxes,
-        )
+        cells.push(cell_row);
     }
+    (
+        cells
+            .iter()
+            .map(|row| row.iter().map(|cell_cell| cell_cell.get().0).collect())
+            .collect(),
+        total_foxes,
+    )
 }
+
 #[derive(Event, Debug)]
 struct CellCoverNoMouseEventEvent(Entity);
 #[derive(Event, Debug)]
 struct CellCoverHoverEvent(Entity);
 #[derive(Event, Debug)]
 struct CellCoverMouseupEvent(Entity);
+#[derive(SystemParam)]
+struct CellGroup<'w, 's> {
+    covers: Query<'w, 's, (&'static Parent, Entity), With<CellCover>>,
+    cells: Query<'w, 's, (&'static mut Cell, &'static Children)>,
+    types: Query<'w, 's, (&'static CellType, &'static mut Visibility)>,
+}
 
 pub(crate) struct CellPlugin;
 impl Plugin for CellPlugin {
@@ -321,18 +320,17 @@ fn reveal_cell(
     mut money: ResMut<Money>,
     catch_price: Res<CatchPrice>,
     mut cell_cover_event: EventReader<CellCoverMouseupEvent>,
-    cell_covers_q: Query<(&Parent, Entity), With<CellCover>>,
-    mut cells_q: Query<(&mut Cell, &Children)>,
-    mut cell_types_q: Query<(&CellType, &mut Visibility)>,
+    mut cell_group: CellGroup,
 ) {
     let search_state = search_state.get();
     for ev in cell_cover_event.read() {
-        if let Ok((cell_cover_parent, cell_cover)) = cell_covers_q.get(ev.0) {
-            if let Ok((mut cell, cell_children)) = cells_q.get_mut(cell_cover_parent.get()) {
+        if let Ok((cell_cover_parent, cell_cover)) = cell_group.covers.get(ev.0) {
+            if let Ok((mut cell, cell_children)) = cell_group.cells.get_mut(cell_cover_parent.get())
+            {
                 cell.revealed = true;
                 for cell_child in cell_children {
                     if let Ok((cell_type, mut cell_type_visibility)) =
-                        cell_types_q.get_mut(*cell_child)
+                        cell_group.types.get_mut(*cell_child)
                     {
                         *cell_type_visibility = Visibility::Visible;
                         if let CellType::Fox(fox_species) = cell_type {
