@@ -1,5 +1,3 @@
-use std::sync::Mutex;
-
 use bevy::{
     app::{App, Plugin},
     asset::AssetServer,
@@ -15,7 +13,6 @@ use bevy::{
     winit::cursor::{CursorIcon, CustomCursor},
 };
 use cell::CellPlugin;
-use once_cell::sync::Lazy;
 use ui::UIPlugin;
 
 use crate::Money;
@@ -27,6 +24,13 @@ pub mod ui;
 pub(crate) struct Level(usize);
 #[derive(Resource, Default, Debug, Clone, Copy)]
 pub(crate) struct TotalFoxes(u32);
+#[derive(Resource)]
+pub(crate) struct CatchPrice(Money);
+impl Default for CatchPrice {
+    fn default() -> Self {
+        Self(Money::ZERO)
+    }
+}
 #[derive(States, Default, Debug, Hash, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SearchState {
     #[default]
@@ -52,7 +56,6 @@ impl SearchState {
         });
     }
 }
-static CATCH_PRICE: Lazy<Mutex<Money>> = Lazy::new(|| Mutex::new(Money::new(0, 0)));
 
 pub(crate) struct SearchPlugin;
 impl Plugin for SearchPlugin {
@@ -60,6 +63,7 @@ impl Plugin for SearchPlugin {
         app.add_plugins((UIPlugin, CellPlugin))
             .insert_resource(Level::default())
             .insert_resource(TotalFoxes::default())
+            .insert_resource(CatchPrice::default())
             .init_state::<SearchState>();
     }
 }

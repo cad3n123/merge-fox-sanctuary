@@ -12,11 +12,19 @@ pub(crate) struct Money {
     cents: Cent,
 }
 impl Money {
+    pub(crate) const ZERO: Self = Self {
+        dollars: Dollar::ZERO,
+        cents: Cent::ZERO,
+    };
+
     pub(crate) const fn new(dollars: u64, cents: u8) -> Self {
         Self {
             dollars: Dollar(dollars),
             cents: Cent(cents),
         }
+    }
+    pub(crate) fn dollars_string(&self) -> String {
+        self.dollars.to_string()
     }
 }
 impl AddAssign for Money {
@@ -162,6 +170,9 @@ impl Display for Money {
 }
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct Dollar(u64);
+impl Dollar {
+    const ZERO: Self = Self(0);
+}
 impl AddAssign for Dollar {
     fn add_assign(&mut self, rhs: Self) {
         self.0.add_assign(rhs.0);
@@ -212,6 +223,9 @@ impl Display for Dollar {
 }
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct Cent(u8);
+impl Cent {
+    const ZERO: Self = Self(0);
+}
 impl AddAssign for Cent {
     fn add_assign(&mut self, rhs: Self) {
         self.0.add_assign(rhs.0);

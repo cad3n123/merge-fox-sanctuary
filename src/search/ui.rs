@@ -6,7 +6,7 @@ use bevy::{
         entity::Entity,
         query::{Changed, With},
         schedule::IntoSystemConfigs,
-        system::{Commands, Query, Res, ResMut, Single},
+        system::{Commands, Populated, Res, ResMut, Single},
     },
     hierarchy::{BuildChildren, ChildBuild, ChildBuilder},
     input::{common_conditions::input_just_released, keyboard::KeyCode},
@@ -16,13 +16,12 @@ use bevy::{
     },
     text::TextFont,
     ui::{
-        widget::{Button, Text},
+        widget::{Button, ImageNode, Text},
         AlignItems, AlignSelf, FlexDirection, Interaction, JustifyContent, JustifySelf, Node,
         UiRect, Val,
     },
     utils::default,
     window::Window,
-    winit::cursor::{CursorIcon, CustomCursor},
 };
 
 use crate::{
@@ -30,6 +29,8 @@ use crate::{
     search::SearchState,
     ui::{MoneyContainer, RootTrait},
 };
+
+use super::CatchPrice;
 
 #[derive(Component)]
 struct Root;
@@ -52,7 +53,7 @@ impl RootTrait for Root {
             ))
             .with_children(|root| {
                 TopContainer::spawn(root, asset_server);
-                CatchButton::spawn(root);
+                CatchButton::spawn(root, asset_server);
             });
     }
 }
@@ -79,7 +80,9 @@ impl TopContainer {
 #[derive(Component)]
 struct CatchButton;
 impl CatchButton {
-    fn spawn(root: &mut ChildBuilder<'_>) {
+    const FONT_SIZE: f32 = 50.;
+
+    fn spawn(root: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>) {
         root.spawn((
             Self,
             Button,
@@ -90,7 +93,27 @@ impl CatchButton {
             },
         ))
         .with_children(|search_button| {
-            CatchButtonText::spawn(search_button);
+            search_button.spawn((
+                ImageNode::new(asset_server.load("images/coin.png")),
+                Node {
+                    width: Val::Px(Self::FONT_SIZE),
+                    height: Val::Px(Self::FONT_SIZE),
+                    ..default()
+                },
+            ));
+            search_button.spawn((
+                CatchPriceUI,
+                Text::new("0"),
+                TextFont::from_font_size(Self::FONT_SIZE),
+            ));
+            search_button.spawn((
+                Text::new("Catch"),
+                TextFont::from_font_size(Self::FONT_SIZE),
+                Node {
+                    margin: UiRect::left(Val::Px(Self::FONT_SIZE)),
+                    ..default()
+                },
+            ));
         });
     }
     #[allow(clippy::needless_pass_by_value)]
@@ -122,16 +145,16 @@ impl CatchButton {
     }
 }
 #[derive(Component)]
-struct CatchButtonText;
-impl CatchButtonText {
-    const FONT_SIZE: f32 = 50.;
-
-    fn spawn(search_button: &mut ChildBuilder<'_>) {
-        search_button.spawn((
-            Self,
-            Text::new("Catch"),
-            TextFont::from_font_size(Self::FONT_SIZE),
-        ));
+struct CatchPriceUI;
+impl CatchPriceUI {
+    #[allow(clippy::needless_pass_by_value)]
+    fn system(
+        catch_price: Res<CatchPrice>,
+        mut catch_price_uis_q: Populated<&mut Text, With<Self>>,
+    ) {
+        for mut catch_price_ui in &mut catch_price_uis_q {
+            *catch_price_ui = Text::from(catch_price.0.dollars_string());
+        }
     }
 }
 
@@ -143,6 +166,7 @@ impl Plugin for UIPlugin {
                 Update,
                 (
                     CatchButton::system,
+                    CatchPriceUI::system,
                     set_search_state_reveal.run_if(input_just_released(KeyCode::Escape)),
                 )
                     .run_if(in_state(AppState::Search)),

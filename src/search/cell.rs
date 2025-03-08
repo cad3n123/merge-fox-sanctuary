@@ -36,7 +36,7 @@ use crate::{
     Clickable, Money, Size,
 };
 
-use super::{Level, SearchState, TotalFoxes, CATCH_PRICE};
+use super::{CatchPrice, Level, SearchState, TotalFoxes};
 
 #[derive(Component, Clone, Copy, Default)]
 struct Cell {
@@ -319,6 +319,7 @@ fn reveal_cell(
     mut commands: Commands,
     search_state: Res<State<SearchState>>,
     mut money: ResMut<Money>,
+    catch_price: Res<CatchPrice>,
     mut cell_cover_event: EventReader<CellCoverMouseupEvent>,
     cell_covers_q: Query<(&Parent, Entity), With<CellCover>>,
     mut cells_q: Query<(&mut Cell, &Children)>,
@@ -349,7 +350,7 @@ fn reveal_cell(
             }
             commands.entity(cell_cover).despawn_recursive();
             if *search_state == SearchState::Catch {
-                *money -= CATCH_PRICE.lock().unwrap().clone();
+                *money -= catch_price.0.clone();
             }
         }
     }
