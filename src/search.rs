@@ -1,3 +1,4 @@
+use animation::AnimationPlugin;
 use bevy::{
     app::{App, Plugin},
     asset::AssetServer,
@@ -17,6 +18,7 @@ use ui::UIPlugin;
 
 use crate::Money;
 
+pub mod animation;
 pub mod cell;
 pub mod ui;
 
@@ -60,7 +62,7 @@ impl SearchState {
 pub(crate) struct SearchPlugin;
 impl Plugin for SearchPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((UIPlugin, CellPlugin))
+        app.add_plugins((UIPlugin, AnimationPlugin, CellPlugin))
             .insert_resource(Level::default())
             .insert_resource(TotalFoxes::default())
             .insert_resource(CatchPrice::default())

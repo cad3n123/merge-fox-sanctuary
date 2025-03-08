@@ -14,7 +14,7 @@ use bevy::{
     },
     text::TextFont,
     ui::{
-        widget::{Button, ImageNode, Text},
+        widget::{Button, Text},
         AlignItems, AlignSelf, FlexDirection, Interaction, JustifyContent, JustifySelf, Node,
         UiRect, Val,
     },
@@ -23,7 +23,7 @@ use bevy::{
 
 use crate::{
     app_state::{AppState, Merge},
-    ui::{MoneyContainer, RootTrait},
+    ui::{CoinUI, MoneyContainer, RootTrait},
 };
 
 use super::fox_lot::FoxLotPrice;
@@ -88,14 +88,12 @@ impl PriceContainer {
             ))
             .with_children(|price_container| {
                 price_container.spawn((Text::new("Price: "), TextFont::from_font_size(45.)));
-                price_container.spawn((
-                    ImageNode::new(asset_server.load("images/coin.png")),
-                    Node {
-                        width: Val::Px(Self::FONT_SIZE),
-                        height: Val::Px(Self::FONT_SIZE),
-                        ..default()
-                    },
-                ));
+                CoinUI::spawn(
+                    price_container,
+                    asset_server,
+                    Val::Px(Self::FONT_SIZE),
+                    None,
+                );
                 price_container.spawn((
                     FoxLotPriceUI,
                     Text::new("0"),

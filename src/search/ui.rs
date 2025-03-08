@@ -1,9 +1,11 @@
 use bevy::{
     app::{App, Plugin, Update},
     asset::AssetServer,
+    color::Color,
     ecs::{
         component::Component,
         entity::Entity,
+        event::EventReader,
         query::{Changed, With},
         schedule::IntoSystemConfigs,
         system::{Commands, Query, Res, ResMut, Single},
@@ -17,8 +19,8 @@ use bevy::{
     text::TextFont,
     ui::{
         widget::{Button, ImageNode, Text},
-        AlignItems, AlignSelf, FlexDirection, Interaction, JustifyContent, JustifySelf, Node,
-        UiRect, Val,
+        AlignItems, AlignSelf, FlexDirection, FlexWrap, Interaction, JustifyContent, JustifySelf,
+        Node, UiRect, Val,
     },
     utils::default,
     window::Window,
@@ -26,11 +28,16 @@ use bevy::{
 
 use crate::{
     app_state::{AppState, Search},
+    fox::Fox,
     search::SearchState,
-    ui::{MoneyContainer, RootTrait},
+    ui::{CoinUI, MoneyContainer, RootTrait},
 };
 
-use super::CatchPrice;
+use super::{
+    animation::{Fade, FadeMode},
+    cell::{Cell, FoxCaughtEvent},
+    CatchPrice,
+};
 
 #[derive(Component)]
 struct Root;
@@ -88,19 +95,20 @@ impl CatchButton {
             Button,
             Node {
                 align_self: AlignSelf::Center,
+                align_items: AlignItems::Center,
                 margin: UiRect::bottom(Val::Px(30.)),
                 ..default()
             },
         ))
         .with_children(|search_button| {
-            search_button.spawn((
-                ImageNode::new(asset_server.load("images/coin.png")),
-                Node {
-                    width: Val::Px(Self::FONT_SIZE),
-                    height: Val::Px(Self::FONT_SIZE),
-                    ..default()
-                },
-            ));
+            const COIN_SIZE: f32 = CatchButton::FONT_SIZE - 10.;
+            const COIN_MARGIN: f32 = (CatchButton::FONT_SIZE - COIN_SIZE) * 0.5;
+            CoinUI::spawn(
+                search_button,
+                asset_server,
+                Val::Px(COIN_SIZE),
+                Some(Val::Px(COIN_MARGIN)),
+            );
             search_button.spawn((
                 CatchPriceUI,
                 Text::new("0"),
@@ -110,7 +118,7 @@ impl CatchButton {
                 Text::new("Catch"),
                 TextFont::from_font_size(Self::FONT_SIZE),
                 Node {
-                    margin: UiRect::left(Val::Px(Self::FONT_SIZE)),
+                    margin: UiRect::left(Val::Px(Self::FONT_SIZE * 0.5)),
                     ..default()
                 },
             ));
@@ -154,6 +162,45 @@ impl CatchPriceUI {
         }
     }
 }
+#[derive(Component)]
+struct FoxCollectionUI;
+impl FoxCollectionUI {
+    fn spawn(commands: &mut Commands) {
+        commands.spawn((
+            Self,
+            Search,
+            Button,
+            Node {
+                height: Val::Percent(100.),
+                flex_direction: FlexDirection::Column,
+                flex_wrap: FlexWrap::Wrap,
+                ..default()
+            },
+        ));
+    }
+}
+#[derive(Component)]
+struct CollectedFoxUI(Fox);
+impl CollectedFoxUI {
+    const SIZE: f32 = Cell::SIZE;
+
+    fn spawn(fox_collection_ui: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>, fox: Fox) {
+        fox_collection_ui.spawn((
+            Self(fox),
+            Fade::new(FadeMode::Appearing),
+            ImageNode {
+                image: asset_server.load("images/Fox.png"),
+                color: Color::srgba(1., 1., 1., 0.),
+                ..default()
+            },
+            Node {
+                width: Val::Px(Self::SIZE),
+                height: Val::Px(Self::SIZE),
+                ..default()
+            },
+        ));
+    }
+}
 
 pub(super) struct UIPlugin;
 impl Plugin for UIPlugin {
@@ -165,6 +212,7 @@ impl Plugin for UIPlugin {
                     CatchButton::system,
                     CatchPriceUI::system,
                     set_search_state_reveal.run_if(input_just_released(KeyCode::Escape)),
+                    on_fox_caught,
                 )
                     .run_if(in_state(AppState::Search)),
             );
@@ -173,6 +221,7 @@ impl Plugin for UIPlugin {
 #[allow(clippy::needless_pass_by_value)]
 fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
     Root::spawn(&mut commands, &asset_server);
+    FoxCollectionUI::spawn(&mut commands);
 }
 #[allow(clippy::needless_pass_by_value)]
 fn set_search_state_reveal(
@@ -188,4 +237,21 @@ fn set_search_state_reveal(
         *window,
         SearchState::Reveal,
     );
+}
+#[allow(clippy::needless_pass_by_value)]
+fn on_fox_caught(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut fox_caught_event: EventReader<FoxCaughtEvent>,
+    fox_collection_ui: Single<Entity, With<FoxCollectionUI>>,
+) {
+    for ev in fox_caught_event.read() {
+        let fox_species = ev.0;
+        let fox = Fox::new_random(fox_species);
+        commands
+            .entity(*fox_collection_ui)
+            .with_children(|fox_collection_ui| {
+                CollectedFoxUI::spawn(fox_collection_ui, &asset_server, fox);
+            });
+    }
 }

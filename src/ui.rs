@@ -12,7 +12,7 @@ use bevy::{
     text::TextFont,
     ui::{
         widget::{ImageNode, Text},
-        AlignItems, Node, Val,
+        AlignItems, Node, UiRect, Val,
     },
     utils::default,
 };
@@ -21,6 +21,27 @@ use crate::{app_state::AppState, Money};
 
 pub(crate) trait RootTrait {
     fn spawn(commands: &mut Commands, asset_server: &Res<AssetServer>);
+}
+#[derive(Component)]
+pub(crate) struct CoinUI;
+impl CoinUI {
+    pub(crate) fn spawn(
+        parent: &mut ChildBuilder<'_>,
+        asset_server: &Res<AssetServer>,
+        size: Val,
+        vertical_margin: Option<Val>,
+    ) {
+        parent.spawn((
+            Self,
+            ImageNode::new(asset_server.load("images/coin.png")),
+            Node {
+                width: size,
+                height: size,
+                margin: vertical_margin.map_or_else(default, UiRect::vertical),
+                ..default()
+            },
+        ));
+    }
 }
 #[derive(Component)]
 pub(crate) struct MoneyContainer;
@@ -38,14 +59,12 @@ impl MoneyContainer {
                 },
             ))
             .with_children(|money_container| {
-                money_container.spawn((
-                    ImageNode::new(asset_server.load("images/coin.png")),
-                    Node {
-                        width: Val::Px(Self::FONT_SIZE),
-                        height: Val::Px(Self::FONT_SIZE),
-                        ..default()
-                    },
-                ));
+                CoinUI::spawn(
+                    money_container,
+                    asset_server,
+                    Val::Px(Self::FONT_SIZE),
+                    None,
+                );
                 money_container.spawn((
                     MoneyUI,
                     Text::new("0"),

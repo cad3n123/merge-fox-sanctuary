@@ -8,7 +8,7 @@ use bevy::{
     ecs::{
         component::Component,
         entity::Entity,
-        event::{Event, EventReader},
+        event::{Event, EventReader, EventWriter},
         query::With,
         schedule::IntoSystemConfigs,
         system::{Commands, Query, Res, ResMut, SystemParam},
@@ -35,18 +35,19 @@ use strum_macros::EnumString;
 use crate::{
     app_state::{AppState, AppStateSet},
     fox::FoxSpecies,
+    search::animation::{DisappearingMode, Fade, FadeMode},
     Clickable, Money, Size,
 };
 
 use super::{CatchPrice, Level, SearchState, TotalFoxes};
 
 #[derive(Component, Clone, Copy, Default)]
-struct Cell {
+pub(crate) struct Cell {
     cell_type: Option<CellType>,
     revealed: bool,
 }
 impl Cell {
-    const SIZE: f32 = 100.;
+    pub(crate) const SIZE: f32 = 100.;
 
     pub fn spawn(
         self,
@@ -252,11 +253,13 @@ struct CellCoverNoMouseEventEvent(Entity);
 struct CellCoverHoverEvent(Entity);
 #[derive(Event, Debug)]
 struct CellCoverMouseupEvent(Entity);
+#[derive(Event, Debug)]
+pub(crate) struct FoxCaughtEvent(pub(crate) FoxSpecies);
 #[derive(SystemParam)]
 struct CellGroup<'w, 's> {
     covers: Query<'w, 's, (&'static Parent, Entity), With<CellCover>>,
     cells: Query<'w, 's, (&'static mut Cell, &'static Children)>,
-    types: Query<'w, 's, (&'static CellType, &'static mut Visibility)>,
+    types: Query<'w, 's, (Entity, &'static CellType, &'static mut Visibility)>,
 }
 
 pub(crate) struct CellPlugin;
@@ -265,6 +268,7 @@ impl Plugin for CellPlugin {
         app.add_event::<CellCoverNoMouseEventEvent>()
             .add_event::<CellCoverHoverEvent>()
             .add_event::<CellCoverMouseupEvent>()
+            .add_event::<FoxCaughtEvent>()
             .add_systems(OnEnter(AppState::Search), startup.after(AppStateSet))
             .add_systems(
                 Update,
@@ -319,6 +323,7 @@ fn reveal_cell(
     search_state: Res<State<SearchState>>,
     mut money: ResMut<Money>,
     catch_price: Res<CatchPrice>,
+    mut fox_caught_event: EventWriter<FoxCaughtEvent>,
     mut cell_cover_event: EventReader<CellCoverMouseupEvent>,
     mut cell_group: CellGroup,
 ) {
@@ -329,11 +334,17 @@ fn reveal_cell(
             {
                 cell.revealed = true;
                 for cell_child in cell_children {
-                    if let Ok((cell_type, mut cell_type_visibility)) =
+                    if let Ok((cell_type_entity, cell_type, mut cell_type_visibility)) =
                         cell_group.types.get_mut(*cell_child)
                     {
                         *cell_type_visibility = Visibility::Visible;
                         if let CellType::Fox(fox_species) = cell_type {
+                            if *search_state == SearchState::Catch {
+                                fox_caught_event.send(FoxCaughtEvent(*fox_species));
+                                commands.entity(cell_type_entity).insert(Fade::new(
+                                    FadeMode::Disappearing(DisappearingMode::Delete),
+                                ));
+                            }
                             println!(
                                 "{} a {:?}",
                                 match *search_state {

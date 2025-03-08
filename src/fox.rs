@@ -24,7 +24,7 @@ pub(crate) enum FoxSpecies {
     Corsac,
 }
 impl_enum_distribution!(FoxSpecies);
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct Name(Arc<str>);
 static POSSIBLE_NAMES: Lazy<Vec<Name>> = Lazy::new(|| {
     vec![
@@ -135,6 +135,7 @@ impl Distribution<Name> for StandardUniform {
         POSSIBLE_NAMES[rng.random_range(0..POSSIBLE_NAMES.len())].clone()
     }
 }
+#[derive(Debug)]
 struct Age(u32);
 impl Age {
     const MAX_RANDOM_AGE: Self = Self(3);
@@ -144,7 +145,8 @@ impl Distribution<Age> for StandardUniform {
         Age(rng.random_range(0..Age::MAX_RANDOM_AGE.0))
     }
 }
-struct Fox {
+#[derive(Debug)]
+pub(crate) struct Fox {
     species: FoxSpecies,
     name: Name,
     age: Age,
@@ -152,10 +154,10 @@ struct Fox {
     secondary_injury: Injury,
 }
 impl Fox {
-    pub(crate) fn new_random() -> Self {
+    pub(crate) fn new_random(species: FoxSpecies) -> Self {
         let primary_injury: Injury = rand::random();
         Self {
-            species: rand::random(),
+            species,
             name: rand::random(),
             age: rand::random(),
             primary_injury,
@@ -169,7 +171,7 @@ impl Fox {
         }
     }
 }
-#[derive(FromRepr, EnumCount, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, FromRepr, EnumCount, PartialEq, Eq, Clone, Copy)]
 #[repr(u32)]
 enum Injury {
     Malnourished,
