@@ -206,7 +206,7 @@ static LEVEL_CELLS: Lazy<Vec<(Vec<Vec<Cell>>, TotalFoxes)>> = Lazy::new(|| {
             "C   ", //
             "l   ", //
             " s  ", //
-            "    ", //
+            "s   ", //
         ],
         &vec![
             "    ", //
