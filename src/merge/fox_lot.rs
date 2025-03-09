@@ -148,6 +148,7 @@ impl Plugin for FoxLotPlugin {
                 Update,
                 select_fox_sanctuary
                     .before(ClickableSet)
+                    .before(FollowMouse::system)
                     .run_if(in_state(AppState::Merge)),
             )
             .add_systems(
@@ -171,13 +172,11 @@ fn mousedown_fox_sanctuary(
                 commands
                     .entity(entity)
                     .insert(FollowMouse {
-                        // parent: parent.map(Parent::get),
                         parent: Some(parent.get()),
                         previous_transform: *transform,
                     })
                     .remove_parent_in_place();
             }
-            // commands.entity(entity).remove::<Hovered>();
         }
     }
 }
@@ -234,8 +233,10 @@ fn select_fox_sanctuary(
             } else {
                 commands.entity(entity).set_parent(follow_parent);
             }
-            commands.entity(entity).remove::<FollowMouse>();
-            commands.entity(entity).remove::<Hovered>();
+            commands
+                .entity(entity)
+                .remove::<FollowMouse>()
+                .remove::<Hovered>();
             fox_sanctuary_transform.translation.x = 0.;
             fox_sanctuary_transform.translation.y = 0.;
         }
