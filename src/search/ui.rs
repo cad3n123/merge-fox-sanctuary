@@ -304,7 +304,7 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
     FoxCollectionUI::spawn(&mut commands);
 }
 #[allow(clippy::needless_pass_by_value)]
-fn set_search_state_reveal(
+pub(crate) fn set_search_state_reveal(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut next_search_state: ResMut<NextState<SearchState>>,

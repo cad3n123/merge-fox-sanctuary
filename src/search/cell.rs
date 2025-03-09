@@ -11,21 +11,22 @@ use bevy::{
         event::{Event, EventReader, EventWriter},
         query::With,
         schedule::{common_conditions::resource_changed, IntoSystemConfigs},
-        system::{Commands, Query, Res, ResMut, SystemParam},
+        system::{Commands, Query, Res, ResMut, Single, SystemParam},
     },
     hierarchy::{BuildChildren, ChildBuild, ChildBuilder, Children, DespawnRecursiveExt, Parent},
     math::{primitives::Rectangle, Vec2, Vec3},
     render::{
         mesh::{Mesh, Mesh2d},
-        view::Visibility,
+        view::{window, Visibility},
     },
     sprite::{ColorMaterial, MeshMaterial2d, Sprite},
     state::{
         condition::in_state,
-        state::{OnEnter, State},
+        state::{NextState, OnEnter, State},
     },
     transform::components::Transform,
     utils::default,
+    window::Window,
 };
 use enum_map::Enum;
 use once_cell::sync::Lazy;
@@ -35,7 +36,10 @@ use strum_macros::EnumString;
 use crate::{
     app_state::{AppState, AppStateSet},
     fox::FoxSpecies,
-    search::animation::{Fade, FadeEndMode, FadeMode, FadeSpeed},
+    search::{
+        animation::{Fade, FadeEndMode, FadeMode, FadeSpeed},
+        ui::set_search_state_reveal,
+    },
     Clickable, Money, Size,
 };
 
@@ -176,9 +180,7 @@ impl CellCover {
     const NORMAL_COLOR: Color = Color::Srgba(GREEN_800);
     const HOVER_COLOR: Color = Color::Srgba(GREEN_900);
 
-    fn spawn(
-        cell: &mut ChildBuilder<'_>,
-    ) {
+    fn spawn(cell: &mut ChildBuilder<'_>) {
         cell.spawn((
             Self,
             Clickable::new()
@@ -378,8 +380,11 @@ fn reveal_cell(
 #[allow(clippy::needless_pass_by_value)]
 fn end_search(
     mut commands: Commands,
+    next_search_state: ResMut<NextState<SearchState>>,
+    asset_server: Res<AssetServer>,
     total_foxes: Res<TotalFoxes>,
     foxes_uncovered: Res<FoxesUncovered>,
+    window: Single<Entity, With<Window>>,
     cell_covers_q: Query<Entity, With<CellCover>>,
 ) {
     if foxes_uncovered.0 == total_foxes.0 {
@@ -394,5 +399,6 @@ fn end_search(
                     Some(FadeEndMode::Delete),
                 ));
         }
+        set_search_state_reveal(commands.reborrow(), asset_server, next_search_state, window);
     }
 }
