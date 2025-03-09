@@ -271,6 +271,7 @@ impl CollectedFoxTooltip {
                     fox.name().to_string(),
                     format!("Species: {}", fox.species()),
                     format!("Age: {}", fox.age()),
+                    format!("Favorite Activity: {}", fox.favorite_activity()),
                     format!("Primary Problem: {}", fox.primary_problem()),
                 ] {
                     parent.spawn((Text::new(text), TextColor::BLACK));

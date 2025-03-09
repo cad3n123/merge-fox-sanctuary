@@ -10,7 +10,7 @@ use bevy::{
         entity::Entity,
         event::{Event, EventReader, EventWriter},
         query::With,
-        schedule::IntoSystemConfigs,
+        schedule::{common_conditions::resource_changed, IntoSystemConfigs},
         system::{Commands, Query, Res, ResMut, SystemParam},
     },
     hierarchy::{BuildChildren, ChildBuild, ChildBuilder, Children, DespawnRecursiveExt, Parent},
@@ -39,7 +39,7 @@ use crate::{
     Clickable, Money, Size,
 };
 
-use super::{CatchPrice, Level, SearchState, TotalFoxes};
+use super::{CatchPrice, FoxesUncovered, Level, SearchState, TotalFoxes};
 
 #[derive(Component, Clone, Copy, Default)]
 pub(crate) struct Cell {
@@ -65,7 +65,7 @@ impl Cell {
         ));
         cell.with_children(|cell| {
             if !self.revealed {
-                CellCover::spawn(cell, meshes, materials);
+                CellCover::spawn(cell);
             }
             if let Some(cell_type) = &self.cell_type {
                 cell_type.spawn(cell, asset_server, self.revealed);
@@ -178,8 +178,6 @@ impl CellCover {
 
     fn spawn(
         cell: &mut ChildBuilder<'_>,
-        meshes: &mut ResMut<Assets<Mesh>>,
-        materials: &mut ResMut<Assets<ColorMaterial>>,
     ) {
         cell.spawn((
             Self,
@@ -188,8 +186,7 @@ impl CellCover {
                 .set_hover_event(CellCoverHoverEvent)
                 .set_mouseup_event(CellCoverMouseupEvent),
             Size(Vec2::splat(Cell::SIZE)),
-            Mesh2d(meshes.add(Rectangle::from_length(Cell::SIZE))),
-            MeshMaterial2d(materials.add(Self::NORMAL_COLOR)),
+            Sprite::from_color(Self::NORMAL_COLOR, Vec2::splat(Cell::SIZE)),
             Transform::from_translation(2. * Vec3::Z),
         ));
     }
@@ -261,6 +258,13 @@ struct CellGroup<'w, 's> {
     cells: Query<'w, 's, (&'static mut Cell, &'static Children)>,
     types: Query<'w, 's, (Entity, &'static CellType, &'static mut Visibility)>,
 }
+#[derive(SystemParam)]
+struct RevealCellResources<'w> {
+    money: ResMut<'w, Money>,
+    foxes_uncovered: ResMut<'w, FoxesUncovered>,
+    search_state: Res<'w, State<SearchState>>,
+    catch_price: Res<'w, CatchPrice>,
+}
 
 pub(crate) struct CellPlugin;
 impl Plugin for CellPlugin {
@@ -272,7 +276,15 @@ impl Plugin for CellPlugin {
             .add_systems(OnEnter(AppState::Search), startup.after(AppStateSet))
             .add_systems(
                 Update,
-                (no_mouse_event_cell, hover_cell, reveal_cell).run_if(in_state(AppState::Search)),
+                (
+                    no_mouse_event_cell,
+                    hover_cell,
+                    reveal_cell,
+                    end_search
+                        .after(reveal_cell)
+                        .run_if(resource_changed::<FoxesUncovered>),
+                )
+                    .run_if(in_state(AppState::Search)),
             );
     }
 }
@@ -295,39 +307,35 @@ fn startup(
 }
 #[allow(clippy::needless_pass_by_value)]
 fn no_mouse_event_cell(
-    mut materials: ResMut<Assets<ColorMaterial>>,
     mut cell_cover_event: EventReader<CellCoverNoMouseEventEvent>,
-    mut cell_covers_q: Query<&mut MeshMaterial2d<ColorMaterial>, With<CellCover>>,
+    mut cell_covers_q: Query<&mut Sprite, With<CellCover>>,
 ) {
     for ev in cell_cover_event.read() {
-        if let Ok(mut cell_cover_material) = cell_covers_q.get_mut(ev.0) {
-            *cell_cover_material = MeshMaterial2d(materials.add(CellCover::NORMAL_COLOR));
+        if let Ok(mut cell_cover_sprite) = cell_covers_q.get_mut(ev.0) {
+            cell_cover_sprite.color = CellCover::NORMAL_COLOR;
         }
     }
 }
 #[allow(clippy::needless_pass_by_value)]
 fn hover_cell(
-    mut materials: ResMut<Assets<ColorMaterial>>,
     mut cell_cover_event: EventReader<CellCoverHoverEvent>,
-    mut cell_covers_q: Query<&mut MeshMaterial2d<ColorMaterial>, With<CellCover>>,
+    mut cell_covers_q: Query<&mut Sprite, With<CellCover>>,
 ) {
     for ev in cell_cover_event.read() {
-        if let Ok(mut cell_cover_material) = cell_covers_q.get_mut(ev.0) {
-            *cell_cover_material = MeshMaterial2d(materials.add(CellCover::HOVER_COLOR));
+        if let Ok(mut cell_cover_sprite) = cell_covers_q.get_mut(ev.0) {
+            cell_cover_sprite.color = CellCover::HOVER_COLOR;
         }
     }
 }
 #[allow(clippy::needless_pass_by_value)]
 fn reveal_cell(
     mut commands: Commands,
-    search_state: Res<State<SearchState>>,
-    mut money: ResMut<Money>,
-    catch_price: Res<CatchPrice>,
+    mut resources: RevealCellResources,
     mut fox_caught_event: EventWriter<FoxCaughtEvent>,
     mut cell_cover_event: EventReader<CellCoverMouseupEvent>,
     mut cell_group: CellGroup,
 ) {
-    let search_state = search_state.get();
+    let search_state = resources.search_state.get();
     for ev in cell_cover_event.read() {
         if let Ok((cell_cover_parent, cell_cover)) = cell_group.covers.get(ev.0) {
             if let Ok((mut cell, cell_children)) = cell_group.cells.get_mut(cell_cover_parent.get())
@@ -355,14 +363,36 @@ fn reveal_cell(
                                 },
                                 fox_species
                             );
+                            resources.foxes_uncovered.0 += 1;
                         }
                     }
                 }
             }
             commands.entity(cell_cover).despawn_recursive();
             if *search_state == SearchState::Catch {
-                *money -= catch_price.0.clone();
+                *resources.money -= resources.catch_price.0.clone();
             }
+        }
+    }
+}
+#[allow(clippy::needless_pass_by_value)]
+fn end_search(
+    mut commands: Commands,
+    total_foxes: Res<TotalFoxes>,
+    foxes_uncovered: Res<FoxesUncovered>,
+    cell_covers_q: Query<Entity, With<CellCover>>,
+) {
+    if foxes_uncovered.0 == total_foxes.0 {
+        println!("Done!");
+        for cell_cover in &cell_covers_q {
+            commands
+                .entity(cell_cover)
+                .remove::<Clickable>()
+                .insert(Fade::new(
+                    FadeMode::Disappearing,
+                    FadeSpeed::Medium,
+                    Some(FadeEndMode::Delete),
+                ));
         }
     }
 }

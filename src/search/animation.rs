@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use bevy::{
     app::{Plugin, Update},
-    color::Color,
+    color::Alpha,
     ecs::{
         component::Component,
         entity::Entity,
@@ -19,24 +19,21 @@ use bevy::{
 use crate::app_state::AppState;
 
 trait Fadable {
-    const STRENGTH: f32 = 2.75;
+    const STRENGTH: f32 = 2.;
 
     fn set_alpha(&mut self, lucency: u32);
     fn get_alpha(lucency: u32) -> f32 {
-        let ratio = lucency as f32 / Fade::MAX_LUCENCY as f32;
-        (Self::STRENGTH * (ratio - 1.)).exp()
+        (lucency as f32 / Fade::MAX_LUCENCY as f32).powi(2)
     }
 }
-
 impl Fadable for Sprite {
     fn set_alpha(&mut self, lucency: u32) {
-        self.color = Color::srgba(1., 1., 1., Self::get_alpha(lucency));
+        self.color.set_alpha(Self::get_alpha(lucency));
     }
 }
-
 impl Fadable for ImageNode {
     fn set_alpha(&mut self, lucency: u32) {
-        self.color = Color::srgba(1., 1., 1., Self::get_alpha(lucency));
+        self.color.set_alpha(Self::get_alpha(lucency));
     }
 }
 #[derive(Component)]

@@ -26,6 +26,8 @@ pub mod ui;
 pub(crate) struct Level(usize);
 #[derive(Resource, Default, Debug, Clone, Copy)]
 pub(crate) struct TotalFoxes(u32);
+#[derive(Resource, Default, Debug, Clone, Copy)]
+pub(crate) struct FoxesUncovered(u32);
 #[derive(Resource)]
 pub(crate) struct CatchPrice(Money);
 impl Default for CatchPrice {
@@ -65,6 +67,7 @@ impl Plugin for SearchPlugin {
         app.add_plugins((UIPlugin, AnimationPlugin, CellPlugin))
             .insert_resource(Level::default())
             .insert_resource(TotalFoxes::default())
+            .insert_resource(FoxesUncovered::default())
             .insert_resource(CatchPrice::default())
             .init_state::<SearchState>();
     }

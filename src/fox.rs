@@ -45,7 +45,6 @@ static POSSIBLE_NAMES: Lazy<Vec<Name>> = Lazy::new(|| {
         Name(Arc::from("Bonzo")),
         Name(Arc::from("Rusty")),
         Name(Arc::from("Ember")),
-        Name(Arc::from("Fennec")),
         Name(Arc::from("Blaze")),
         Name(Arc::from("Sienna")),
         Name(Arc::from("Autumn")),
@@ -138,7 +137,7 @@ static POSSIBLE_NAMES: Lazy<Vec<Name>> = Lazy::new(|| {
         Name(Arc::from("Topaz")),
         Name(Arc::from("Amberly")),
         Name(Arc::from("Tawny")),
-        Name(Arc::from("Ochre")),
+        Name(Arc::from("Okra")),
     ]
 });
 impl Distribution<Name> for StandardUniform {
@@ -171,6 +170,7 @@ pub(crate) struct Fox {
     species: FoxSpecies,
     name: Name,
     age: Age,
+    favorite_activity: Activity,
     primary_problem: Problem,
     secondary_problem: Problem,
 }
@@ -181,6 +181,7 @@ impl Fox {
             species,
             name: rand::random(),
             age: rand::random(),
+            favorite_activity: rand::random(),
             primary_problem,
             secondary_problem: {
                 let mut secondary_problem: Problem = rand::random();
@@ -200,6 +201,10 @@ impl Fox {
         &self.age
     }
 
+    pub(crate) const fn favorite_activity(&self) -> Activity {
+        self.favorite_activity
+    }
+
     pub(crate) const fn primary_problem(&self) -> Problem {
         self.primary_problem
     }
@@ -208,6 +213,35 @@ impl Fox {
         self.species
     }
 }
+#[derive(Debug, FromRepr, EnumCount, PartialEq, Eq, Clone, Copy)]
+#[repr(u32)]
+pub(crate) enum Activity {
+    Pouncing,
+    Digging,
+    Playing,
+    Hunting,
+    Tunneling,
+    Exploring,
+    Sunbathing,
+}
+impl Display for Activity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Pouncing => "Pouncing",
+                Self::Digging => "Digging",
+                Self::Playing => "Playing",
+                Self::Hunting => "Hunting",
+                Self::Tunneling => "Tunneling",
+                Self::Exploring => "Exploring",
+                Self::Sunbathing => "Sunbathing",
+            }
+        )
+    }
+}
+impl_enum_distribution!(Activity);
 #[derive(Debug, FromRepr, EnumCount, PartialEq, Eq, Clone, Copy)]
 #[repr(u32)]
 pub(crate) enum Problem {
