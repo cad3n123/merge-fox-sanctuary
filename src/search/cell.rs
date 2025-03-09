@@ -10,21 +10,23 @@ use bevy::{
         entity::Entity,
         event::{Event, EventReader, EventWriter},
         query::With,
-        schedule::{common_conditions::resource_changed, IntoSystemConfigs},
+        schedule::{common_conditions::resource_changed, Condition, IntoSystemConfigs},
         system::{Commands, Query, Res, ResMut, Single, SystemParam},
     },
     hierarchy::{BuildChildren, ChildBuild, ChildBuilder, Children, DespawnRecursiveExt, Parent},
     math::{primitives::Rectangle, Vec2, Vec3},
     render::{
         mesh::{Mesh, Mesh2d},
-        view::{window, Visibility},
+        view::Visibility,
     },
     sprite::{ColorMaterial, MeshMaterial2d, Sprite},
     state::{
         condition::in_state,
         state::{NextState, OnEnter, State},
     },
+    text::TextFont,
     transform::components::Transform,
+    ui::widget::Text,
     utils::default,
     window::Window,
 };
@@ -34,16 +36,13 @@ use std::cell;
 use strum_macros::EnumString;
 
 use crate::{
-    app_state::{AppState, AppStateSet},
+    app_state::{AppState, AppStateSet, Search},
     fox::FoxSpecies,
-    search::{
-        animation::{Fade, FadeEndMode, FadeMode, FadeSpeed},
-        ui::set_search_state_reveal,
-    },
+    search::animation::{Fade, FadeEndMode, FadeMode, FadeSpeed},
     Clickable, Money, Size,
 };
 
-use super::{CatchPrice, FoxesUncovered, Level, SearchState, TotalFoxes};
+use super::{ui::CatchButton, CatchPrice, FoxesUncovered, Level, SearchState, TotalFoxes};
 
 #[derive(Component, Clone, Copy, Default)]
 pub(crate) struct Cell {
@@ -63,6 +62,7 @@ impl Cell {
     ) {
         let mut cell = commands.spawn((
             self,
+            Search,
             Mesh2d(meshes.add(Rectangle::from_length(Self::SIZE))),
             MeshMaterial2d(materials.add(Color::from(GREEN_400))),
             Transform::from_translation(translation),
@@ -144,6 +144,7 @@ impl CellType {
     fn spawn(self, cell: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>, revealed: bool) {
         cell.spawn((
             self,
+            Search,
             Sprite {
                 image: asset_server.load(format!(
                     "images/{}.png",
@@ -183,6 +184,7 @@ impl CellCover {
     fn spawn(cell: &mut ChildBuilder<'_>) {
         cell.spawn((
             Self,
+            Search,
             Clickable::new()
                 .set_no_mouse_event_event(CellCoverNoMouseEventEvent)
                 .set_hover_event(CellCoverHoverEvent)
@@ -267,6 +269,13 @@ struct RevealCellResources<'w> {
     search_state: Res<'w, State<SearchState>>,
     catch_price: Res<'w, CatchPrice>,
 }
+#[derive(SystemParam)]
+struct EndSearchResources<'w> {
+    next_search_state: ResMut<'w, NextState<SearchState>>,
+    asset_server: Res<'w, AssetServer>,
+    total_foxes: Res<'w, TotalFoxes>,
+    foxes_uncovered: Res<'w, FoxesUncovered>,
+}
 
 pub(crate) struct CellPlugin;
 impl Plugin for CellPlugin {
@@ -281,7 +290,8 @@ impl Plugin for CellPlugin {
                 (
                     no_mouse_event_cell,
                     hover_cell,
-                    reveal_cell,
+                    reveal_cell
+                        .run_if(in_state(SearchState::Catch).or(in_state(SearchState::Reveal))),
                     end_search
                         .after(reveal_cell)
                         .run_if(resource_changed::<FoxesUncovered>),
@@ -357,14 +367,6 @@ fn reveal_cell(
                                     Some(FadeEndMode::Delete),
                                 ));
                             }
-                            println!(
-                                "{} a {:?}",
-                                match *search_state {
-                                    SearchState::Reveal => "Scared away",
-                                    SearchState::Catch => "Caught",
-                                },
-                                fox_species
-                            );
                             resources.foxes_uncovered.0 += 1;
                         }
                     }
@@ -380,15 +382,12 @@ fn reveal_cell(
 #[allow(clippy::needless_pass_by_value)]
 fn end_search(
     mut commands: Commands,
-    next_search_state: ResMut<NextState<SearchState>>,
-    asset_server: Res<AssetServer>,
-    total_foxes: Res<TotalFoxes>,
-    foxes_uncovered: Res<FoxesUncovered>,
+    mut resources: EndSearchResources,
     window: Single<Entity, With<Window>>,
     cell_covers_q: Query<Entity, With<CellCover>>,
+    catch_button: Single<(Entity, &Children), With<CatchButton>>,
 ) {
-    if foxes_uncovered.0 == total_foxes.0 {
-        println!("Done!");
+    if resources.foxes_uncovered.0 == resources.total_foxes.0 {
         for cell_cover in &cell_covers_q {
             commands
                 .entity(cell_cover)
@@ -399,6 +398,20 @@ fn end_search(
                     Some(FadeEndMode::Delete),
                 ));
         }
-        set_search_state_reveal(commands.reborrow(), asset_server, next_search_state, window);
+        SearchState::set(
+            &mut commands,
+            &resources.asset_server,
+            &mut resources.next_search_state,
+            *window,
+            SearchState::Finished,
+        );
+        let (catch_button, catch_button_children) = catch_button.into_inner();
+        for child in catch_button_children {
+            commands.entity(*child).despawn_recursive();
+        }
+        commands.entity(catch_button).insert((
+            Text::new("End Search"),
+            TextFont::from_font_size(CatchButton::FONT_SIZE),
+        ));
     }
 }

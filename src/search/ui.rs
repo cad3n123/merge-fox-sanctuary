@@ -1,5 +1,5 @@
 use bevy::{
-    app::{App, Plugin, Update},
+    app::{App, Plugin, Startup, Update},
     asset::AssetServer,
     color::{palettes::tailwind::ORANGE_300, Color},
     ecs::{
@@ -7,7 +7,7 @@ use bevy::{
         entity::Entity,
         event::EventReader,
         query::{Changed, With},
-        schedule::IntoSystemConfigs,
+        schedule::{Condition, IntoSystemConfigs},
         system::{Commands, Query, Res, ResMut, Single},
     },
     hierarchy::{BuildChildren, ChildBuild, ChildBuilder, DespawnRecursiveExt},
@@ -15,7 +15,7 @@ use bevy::{
     math::{Vec2, Vec3Swizzles},
     state::{
         condition::in_state,
-        state::{NextState, OnEnter, State},
+        state::{NextState, OnExit, State},
     },
     text::{TextColor, TextFont},
     transform::components::GlobalTransform,
@@ -29,7 +29,7 @@ use bevy::{
 };
 
 use crate::{
-    app_state::{AppState, Search},
+    app_state::{self, AppState, Search},
     fox::Fox,
     search::SearchState,
     ui::{CoinUI, MoneyContainer, RootTrait},
@@ -87,9 +87,9 @@ impl TopContainer {
     }
 }
 #[derive(Component)]
-struct CatchButton;
+pub(crate) struct CatchButton;
 impl CatchButton {
-    const FONT_SIZE: f32 = 50.;
+    pub(crate) const FONT_SIZE: f32 = 50.;
 
     fn spawn(root: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>) {
         root.spawn((
@@ -132,6 +132,7 @@ impl CatchButton {
         asset_server: Res<AssetServer>,
         search_state: Res<State<SearchState>>,
         mut next_search_state: ResMut<NextState<SearchState>>,
+        mut next_app_state: ResMut<NextState<AppState>>,
         window: Single<Entity, With<Window>>,
         button_interaction_q: Query<&Interaction, (Changed<Interaction>, With<Self>)>,
     ) {
@@ -141,16 +142,22 @@ impl CatchButton {
 
         let search_button_interaction = button_interaction_q.single();
         if *search_button_interaction == Interaction::Pressed {
-            SearchState::set(
-                &mut commands,
-                &asset_server,
-                &mut next_search_state,
-                *window,
-                match search_state.get() {
-                    SearchState::Reveal => SearchState::Catch,
-                    SearchState::Catch => SearchState::Reveal,
-                },
-            );
+            let search_state = *search_state.get();
+            if search_state == SearchState::Finished {
+                next_app_state.set(AppState::Merge);
+            } else {
+                SearchState::set(
+                    &mut commands,
+                    &asset_server,
+                    &mut next_search_state,
+                    *window,
+                    match search_state {
+                        SearchState::Reveal => SearchState::Catch,
+                        SearchState::Catch => SearchState::Reveal,
+                        SearchState::Finished => SearchState::Finished,
+                    },
+                );
+            }
         }
     }
 }
@@ -214,7 +221,6 @@ impl CollectedFoxUI {
             (&Self, &GlobalTransform, &Interaction, Option<&mut Fade>),
             Changed<Interaction>,
         >,
-        mut collected_fox_tooltips_q: Query<Entity, With<CollectedFoxTooltip>>,
     ) {
         for (collected_fox, collected_fox_gtransform, interaction, fade) in
             &mut collected_fox_gtransforms_q
@@ -283,19 +289,22 @@ impl CollectedFoxTooltip {
 pub(super) struct UIPlugin;
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(AppState::Search), startup)
+        app.add_systems(Startup, startup.before(app_state::startup))
             .add_systems(
                 Update,
                 (
                     CatchButton::system,
                     CatchPriceUI::system,
-                    set_search_state_reveal.run_if(input_just_released(KeyCode::Escape)),
+                    set_search_state_reveal.run_if(
+                        input_just_released(KeyCode::Escape).and(in_state(SearchState::Catch)),
+                    ),
                     on_fox_caught,
                     CollectedFoxUI::hover,
                     CollectedFoxUI::no_mouse,
                 )
                     .run_if(in_state(AppState::Search)),
-            );
+            )
+            .add_systems(OnExit(AppState::Search), exit);
     }
 }
 #[allow(clippy::needless_pass_by_value)]
@@ -333,5 +342,11 @@ fn on_fox_caught(
             .with_children(|fox_collection_ui| {
                 CollectedFoxUI::spawn(fox_collection_ui, &asset_server, fox);
             });
+    }
+}
+#[allow(clippy::needless_pass_by_value)]
+fn exit(mut commands: Commands, collected_fox_uis_q: Query<Entity, With<CollectedFoxUI>>) {
+    for entity in &collected_fox_uis_q {
+        commands.entity(entity).despawn_recursive();
     }
 }

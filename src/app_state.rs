@@ -1,9 +1,9 @@
 use bevy::{
-    app::{App, Plugin},
+    app::{App, Plugin, Startup},
     ecs::{
         component::Component,
         entity::Entity,
-        query::With,
+        query::{With, Without},
         schedule::{IntoSystemConfigs, SystemSet},
         system::{Commands, Query},
     },
@@ -58,8 +58,9 @@ impl StateTransitionExtension for App {
 pub struct AppStatePlugin;
 impl Plugin for AppStatePlugin {
     fn build(&self, app: &mut App) {
-        app.init_state::<AppState>();
-        app.configure_state_transitions();
+        app.init_state::<AppState>()
+            .configure_state_transitions()
+            .add_systems(Startup, startup);
     }
 }
 #[allow(clippy::needless_pass_by_value)]
@@ -83,6 +84,17 @@ pub(crate) fn app_state_exit<T: Component>(
         commands.entity(entity).insert(Visibility::Hidden);
         if let Some(mut clickable) = clickable {
             clickable.active = false;
+        }
+    }
+}
+pub(crate) fn startup(
+    mut commands: Commands,
+    mut entities_q: Query<(Entity, Option<&mut Clickable>), With<Search>>,
+) {
+    for (entity, clickable) in &mut entities_q {
+        commands.entity(entity).insert(Visibility::Hidden);
+        if let Some(mut clickable) = clickable {
+            clickable.active = true;
         }
     }
 }

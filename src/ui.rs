@@ -5,7 +5,7 @@ use bevy::{
         component::Component,
         query::With,
         schedule::{common_conditions::resource_changed, Condition, IntoSystemConfigs},
-        system::{Commands, Query, Res},
+        system::{Commands, EntityCommands, Query, Res},
     },
     hierarchy::{BuildChildren, ChildBuild, ChildBuilder},
     state::condition::state_changed,
@@ -25,12 +25,12 @@ pub(crate) trait RootTrait {
 #[derive(Component)]
 pub(crate) struct CoinUI;
 impl CoinUI {
-    pub(crate) fn spawn(
-        parent: &mut ChildBuilder<'_>,
-        asset_server: &Res<AssetServer>,
+    pub(crate) fn spawn<'a>(
+        parent: &'a mut ChildBuilder<'_>,
+        asset_server: &'a Res<'a, AssetServer>,
         size: Val,
         vertical_margin: Option<Val>,
-    ) {
+    ) -> EntityCommands<'a> {
         parent.spawn((
             Self,
             ImageNode::new(asset_server.load("images/coin.png")),
@@ -40,7 +40,7 @@ impl CoinUI {
                 margin: vertical_margin.map_or_else(default, UiRect::vertical),
                 ..default()
             },
-        ));
+        ))
     }
 }
 #[derive(Component)]

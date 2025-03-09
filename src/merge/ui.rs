@@ -1,5 +1,5 @@
 use bevy::{
-    app::{App, Plugin, Update},
+    app::{App, Plugin, Startup, Update},
     asset::AssetServer,
     ecs::{
         component::Component,
@@ -10,7 +10,7 @@ use bevy::{
     hierarchy::{BuildChildren, ChildBuild, ChildBuilder},
     state::{
         condition::in_state,
-        state::{NextState, OnEnter},
+        state::NextState,
     },
     text::TextFont,
     ui::{
@@ -163,18 +163,17 @@ impl SearchButtonText {
 pub(super) struct UIPlugin;
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(AppState::Merge), merge_startup)
-            .add_systems(
-                Update,
-                (
-                    FoxLotPriceUI::update.run_if(resource_changed::<FoxLotPrice>),
-                    SearchButton::system,
-                )
-                    .run_if(in_state(AppState::Merge)),
-            );
+        app.add_systems(Startup, startup).add_systems(
+            Update,
+            (
+                FoxLotPriceUI::update.run_if(resource_changed::<FoxLotPrice>),
+                SearchButton::system,
+            )
+                .run_if(in_state(AppState::Merge)),
+        );
     }
 }
 #[allow(clippy::needless_pass_by_value)]
-pub(super) fn merge_startup(mut commands: Commands, asset_server: Res<AssetServer>) {
+pub(super) fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
     Root::spawn(&mut commands, &asset_server);
 }

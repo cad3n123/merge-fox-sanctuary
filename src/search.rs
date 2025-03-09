@@ -40,6 +40,7 @@ pub(crate) enum SearchState {
     #[default]
     Reveal,
     Catch,
+    Finished,
 }
 impl SearchState {
     fn set(
@@ -52,7 +53,7 @@ impl SearchState {
         next_search_state.set(new_state);
         let mut window_entity_commands = commands.entity(window);
         window_entity_commands.insert(match new_state {
-            Self::Reveal => CursorIcon::System(SystemCursorIcon::Default),
+            Self::Reveal | Self::Finished => CursorIcon::System(SystemCursorIcon::Default),
             Self::Catch => CursorIcon::Custom(CustomCursor::Image {
                 handle: asset_server.load("images/fox-cursor.png"),
                 hotspot: (20, 20),
