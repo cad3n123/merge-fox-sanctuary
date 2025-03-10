@@ -1,30 +1,36 @@
 use std::{fmt::Display, sync::Arc};
 
 use bevy::{
+    app::{Plugin, Update},
     color::{palettes::tailwind::ORANGE_400, Color, Srgba},
-    ecs::component::Component,
+    ecs::{
+        component::Component,
+        entity::Entity,
+        query::Without,
+        system::{Commands, Query, Res},
+    },
     hierarchy::{ChildBuild, ChildBuilder},
     math::{Vec2, Vec3},
     sprite::Sprite,
+    time::Time,
     transform::components::Transform,
 };
 use enum_map::Enum;
 use once_cell::sync::Lazy;
-use rand::distr::{Distribution, StandardUniform};
+use rand::{
+    distr::{Distribution, StandardUniform},
+    rngs::ThreadRng,
+    Rng,
+};
 use strum::EnumCount;
 use strum_macros::{EnumCount, FromRepr};
 
-use crate::{money::Cent, Money};
-
-macro_rules! impl_enum_distribution {
-    ($t:ty) => {
-        impl Distribution<$t> for StandardUniform {
-            fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> $t {
-                <$t>::from_repr(rng.random_range(0..<$t>::COUNT) as u32).unwrap()
-            }
-        }
-    };
-}
+use crate::{
+    merge::fox_lot,
+    money::Cent,
+    search::animation::{Direction, Jump},
+    Money,
+};
 
 #[derive(FromRepr, EnumCount, Debug, Default, Clone, Copy, Enum)]
 #[repr(u32)]
@@ -183,12 +189,15 @@ pub(crate) struct Fox {
     favorite_activity: Activity,
     primary_problem: Problem,
     secondary_problem: Problem,
+    time_till_jump: f32,
 }
 static FOX_COLOR: Lazy<Color> = Lazy::new(|| Color::from(Fox::SRGBA));
 impl Fox {
     const WIDTH: f32 = 10.;
     const HEIGHT: f32 = Self::WIDTH / 2.;
     const SRGBA: Srgba = ORANGE_400;
+    const JUMP_TIME_BOUNDS: Vec2 = Vec2 { x: 3., y: 6. };
+    const JUMP_DISTANCE: f32 = 10.;
 
     pub(crate) fn spawn(&self, fox_sanctuary: &mut ChildBuilder<'_>, translation: Vec3) {
         fox_sanctuary.spawn((
@@ -199,20 +208,66 @@ impl Fox {
     }
 
     pub(crate) fn new_random(species: FoxSpecies) -> Self {
-        let primary_problem = Problem::new(rand::random());
+        let mut rng: ThreadRng = rand::rng();
+        let primary_problem = Problem::new(rng.random());
         Self {
             species,
-            name: rand::random(),
-            age: rand::random(),
+            name: rng.random(),
+            age: rng.random(),
             favorite_activity: Activity::new(),
             primary_problem: primary_problem.clone(),
             secondary_problem: {
-                let mut secondary_problem = Problem::new(rand::random());
+                let mut secondary_problem = Problem::new(rng.random());
                 while secondary_problem.problem_type == primary_problem.problem_type {
-                    secondary_problem.problem_type = rand::random();
+                    secondary_problem.problem_type = rng.random();
                 }
                 secondary_problem
             },
+            time_till_jump: Self::get_random_jump_time(),
+        }
+    }
+    fn get_random_jump_time() -> f32 {
+        rand::random_range(Self::JUMP_TIME_BOUNDS.x..Self::JUMP_TIME_BOUNDS.y)
+    }
+    #[allow(clippy::needless_pass_by_value)]
+    fn jump_system(
+        mut commands: Commands,
+        time: Res<Time>,
+        mut foxes_q: Query<(Entity, &mut Self, &Transform), Without<Jump>>,
+    ) {
+        for (entity, mut fox, transform) in &mut foxes_q {
+            let translation = transform.translation;
+            fox.time_till_jump -= time.delta_secs();
+            if fox.time_till_jump <= 0. {
+                fox.time_till_jump = Self::get_random_jump_time();
+                let allowed_directions = {
+                    let mut allowed_direction = vec![];
+                    if translation.x - Self::JUMP_DISTANCE >= fox_lot::MIN_FOX_POSITION.x {
+                        allowed_direction.push(Direction::Left);
+                    }
+                    if translation.x + Self::JUMP_DISTANCE <= fox_lot::MAX_FOX_POSITION.x {
+                        allowed_direction.push(Direction::Right);
+                    }
+                    if translation.y - Self::JUMP_DISTANCE >= fox_lot::MIN_FOX_POSITION.y {
+                        allowed_direction.push(Direction::Down);
+                    }
+                    if translation.y + Self::JUMP_DISTANCE <= fox_lot::MAX_FOX_POSITION.y {
+                        allowed_direction.push(Direction::Up);
+                    }
+                    allowed_direction
+                };
+                assert_ne!(allowed_directions.len(), 0);
+                let mut rng = rand::rng();
+                let mut direction = rng.random();
+                while !allowed_directions.contains(&direction) {
+                    direction = rng.random();
+                }
+                commands.entity(entity).insert(Jump {
+                    direction,
+                    original_location: translation,
+                    distance: Self::JUMP_DISTANCE,
+                });
+            }
         }
     }
 
@@ -332,3 +387,9 @@ impl Display for ProblemType {
     }
 }
 impl_enum_distribution!(ProblemType);
+pub(crate) struct FoxPlugin;
+impl Plugin for FoxPlugin {
+    fn build(&self, app: &mut bevy::app::App) {
+        app.add_systems(Update, Fox::jump_system);
+    }
+}

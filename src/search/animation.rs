@@ -10,11 +10,15 @@ use bevy::{
         system::{Commands, Query, Res, ResMut, Resource},
     },
     hierarchy::DespawnRecursiveExt,
+    math::Vec3,
     sprite::Sprite,
     state::condition::in_state,
     time::{Time, Timer, TimerMode},
     ui::widget::ImageNode,
 };
+use rand::distr::{Distribution, StandardUniform};
+use strum::EnumCount;
+use strum_macros::{EnumCount, FromRepr};
 
 use crate::app_state::AppState;
 
@@ -139,6 +143,21 @@ struct FadeTimer {
 impl FadeTimer {
     const DURATION_MILLIS: u64 = 30;
 }
+#[derive(Component)]
+pub(crate) struct Jump {
+    pub(crate) direction: Direction,
+    pub(crate) original_location: Vec3,
+    pub(crate) distance: f32,
+}
+#[derive(FromRepr, EnumCount, Clone, Copy, PartialEq, Eq)]
+#[repr(u32)]
+pub(crate) enum Direction {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+impl_enum_distribution!(Direction);
 
 pub(super) struct AnimationPlugin;
 impl Plugin for AnimationPlugin {

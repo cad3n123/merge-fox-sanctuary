@@ -18,10 +18,21 @@ use bevy::{
     DefaultPlugins,
 };
 use clickable::{Clickable, ClickablePlugin};
+use fox::FoxPlugin;
 use merge::MergePlugin;
 use money::Money;
 use search::SearchPlugin;
 use ui::UIPlugin;
+
+macro_rules! impl_enum_distribution {
+    ($t:ty) => {
+        impl Distribution<$t> for StandardUniform {
+            fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> $t {
+                <$t>::from_repr(rng.random_range(0..<$t>::COUNT) as u32).unwrap()
+            }
+        }
+    };
+}
 
 #[allow(dead_code)]
 trait MyVec2 {
@@ -87,6 +98,7 @@ fn main() {
         AppStatePlugin,
         UIPlugin,
         ClickablePlugin,
+        FoxPlugin,
         MergePlugin,
         SearchPlugin,
     ));

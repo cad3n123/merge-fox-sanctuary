@@ -36,8 +36,8 @@ use super::FoxStorageInfo;
 static SIZE: Lazy<Vec2> = Lazy::new(|| Vec2::splat(FoxLot::SIZE));
 static MARGIN_SIZE: Lazy<Vec2> = Lazy::new(|| *SIZE + FoxLot::MARGIN);
 static INNER_PADDING_SIZE: Lazy<Vec2> = Lazy::new(|| *SIZE - FoxLot::PADDING);
-static MAX_FOX_POSITION: Lazy<Vec2> = Lazy::new(|| *INNER_PADDING_SIZE * 0.5);
-static MIN_FOX_POSITION: Lazy<Vec2> = Lazy::new(|| -*MAX_FOX_POSITION);
+pub(crate) static MAX_FOX_POSITION: Lazy<Vec2> = Lazy::new(|| *INNER_PADDING_SIZE * 0.5);
+pub(crate) static MIN_FOX_POSITION: Lazy<Vec2> = Lazy::new(|| -*MAX_FOX_POSITION);
 #[derive(Component)]
 pub(crate) struct FoxLot;
 impl FoxLot {
