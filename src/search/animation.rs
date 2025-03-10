@@ -6,21 +6,18 @@ use bevy::{
     ecs::{
         component::Component,
         entity::Entity,
-        schedule::IntoSystemConfigs,
         system::{Commands, Query, Res, ResMut, Resource},
     },
     hierarchy::DespawnRecursiveExt,
     math::Vec3,
     sprite::Sprite,
-    state::condition::in_state,
     time::{Time, Timer, TimerMode},
+    transform::components::Transform,
     ui::widget::ImageNode,
 };
 use rand::distr::{Distribution, StandardUniform};
 use strum::EnumCount;
 use strum_macros::{EnumCount, FromRepr};
-
-use crate::app_state::AppState;
 
 trait Fadable {
     const STRENGTH: f32 = 2.;
@@ -43,18 +40,14 @@ impl Fadable for ImageNode {
 #[derive(Component)]
 pub(crate) struct Fade {
     pub(crate) mode: FadeMode,
-    pub(crate) speed: FadeSpeed,
+    pub(crate) speed: Speed,
     pub(crate) end_mode: Option<FadeEndMode>,
     lucency: u32,
 }
 impl Fade {
     const MAX_LUCENCY: u32 = 50;
 
-    pub(crate) const fn new(
-        mode: FadeMode,
-        speed: FadeSpeed,
-        end_mode: Option<FadeEndMode>,
-    ) -> Self {
+    pub(crate) const fn new(mode: FadeMode, speed: Speed, end_mode: Option<FadeEndMode>) -> Self {
         Self {
             mode,
             speed,
@@ -106,7 +99,7 @@ impl Fade {
 }
 #[derive(Clone, Copy)]
 #[allow(dead_code)]
-pub(crate) enum FadeSpeed {
+pub(crate) enum Speed {
     Slow = 1,
     Medium = 2,
     Fast = 4,
@@ -145,9 +138,75 @@ impl FadeTimer {
 }
 #[derive(Component)]
 pub(crate) struct Jump {
-    pub(crate) direction: Direction,
-    pub(crate) original_location: Vec3,
-    pub(crate) distance: f32,
+    direction: Direction,
+    original_translation: Vec3,
+    distance: f32,
+    speed: Speed,
+    height: Height,
+    time_since_start: f32,
+    total_time: f32,
+}
+impl Jump {
+    const REFERENCE_TIME: f32 = 1.;
+    const REFERENCE_HEIGHT: f32 = 0.5;
+
+    pub(crate) const fn new(
+        direction: Direction,
+        original_translation: Vec3,
+        distance: f32,
+        speed: Speed,
+        height: Height,
+    ) -> Self {
+        Self {
+            direction,
+            original_translation,
+            distance,
+            speed,
+            height,
+            time_since_start: 0.,
+            total_time: Self::REFERENCE_TIME / speed as u32 as f32,
+        }
+    }
+    #[allow(clippy::needless_pass_by_value)]
+    fn system(
+        mut commands: Commands,
+        time: Res<Time>,
+        mut jumps_q: Query<(Entity, &mut Self, &mut Transform)>,
+    ) {
+        for (entity, mut jump, mut transform) in &mut jumps_q {
+            jump.time_since_start += time.delta_secs();
+            if jump.time_since_start >= jump.total_time {
+                jump.time_since_start = jump.total_time;
+                commands.entity(entity).remove::<Self>();
+            }
+            transform.translation = jump.original_translation + jump.delta_translation();
+        }
+    }
+    fn delta_translation(&self) -> Vec3 {
+        let x = self.distance * self.time_since_start / self.total_time;
+        let y = -(Self::REFERENCE_HEIGHT * self.height as u32 as f32) * x / self.distance
+            * (x - self.distance);
+        match self.direction {
+            Direction::Left | Direction::Right => Vec3 {
+                x: if self.direction == Direction::Left {
+                    -x
+                } else {
+                    x
+                },
+                y,
+                z: 0.,
+            },
+            Direction::Up | Direction::Down => Vec3 {
+                x: 0.,
+                y: y + if self.direction == Direction::Down {
+                    -x
+                } else {
+                    x
+                },
+                z: 0.,
+            },
+        }
+    }
 }
 #[derive(FromRepr, EnumCount, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -158,6 +217,14 @@ pub(crate) enum Direction {
     Down,
 }
 impl_enum_distribution!(Direction);
+#[derive(FromRepr, EnumCount, Clone, Copy, PartialEq, Eq)]
+#[repr(u32)]
+pub(crate) enum Height {
+    Small = 1,
+    Medium = 2,
+    Large = 3,
+}
+impl_enum_distribution!(Height);
 
 pub(super) struct AnimationPlugin;
 impl Plugin for AnimationPlugin {
@@ -170,7 +237,11 @@ impl Plugin for AnimationPlugin {
         })
         .add_systems(
             Update,
-            (Fade::system::<Sprite>, Fade::system::<ImageNode>).run_if(in_state(AppState::Search)),
+            (
+                Fade::system::<Sprite>,
+                Fade::system::<ImageNode>,
+                Jump::system,
+            ),
         );
     }
 }

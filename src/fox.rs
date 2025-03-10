@@ -28,7 +28,7 @@ use strum_macros::{EnumCount, FromRepr};
 use crate::{
     merge::fox_lot,
     money::Cent,
-    search::animation::{Direction, Jump},
+    search::animation::{Direction, Height, Jump, Speed},
     Money,
 };
 
@@ -197,7 +197,7 @@ impl Fox {
     const HEIGHT: f32 = Self::WIDTH / 2.;
     const SRGBA: Srgba = ORANGE_400;
     const JUMP_TIME_BOUNDS: Vec2 = Vec2 { x: 3., y: 6. };
-    const JUMP_DISTANCE: f32 = 10.;
+    const JUMP_DISTANCE: f32 = 15.;
 
     pub(crate) fn spawn(&self, fox_sanctuary: &mut ChildBuilder<'_>, translation: Vec3) {
         fox_sanctuary.spawn((
@@ -262,11 +262,13 @@ impl Fox {
                 while !allowed_directions.contains(&direction) {
                     direction = rng.random();
                 }
-                commands.entity(entity).insert(Jump {
+                commands.entity(entity).insert(Jump::new(
                     direction,
-                    original_location: translation,
-                    distance: Self::JUMP_DISTANCE,
-                });
+                    translation,
+                    Self::JUMP_DISTANCE,
+                    Speed::Medium,
+                    Height::Medium,
+                ));
             }
         }
     }

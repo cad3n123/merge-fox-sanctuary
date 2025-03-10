@@ -36,7 +36,7 @@ use crate::{
 };
 
 use super::{
-    animation::{Fade, FadeEndMode, FadeMode, FadeSpeed},
+    animation::{Fade, FadeEndMode, FadeMode, Speed},
     cell::{Cell, FoxCaughtEvent},
     CatchPrice,
 };
@@ -198,7 +198,7 @@ impl CollectedFoxUI {
             Self(fox),
             Fade::new(
                 FadeMode::Appearing,
-                FadeSpeed::Medium,
+                Speed::Medium,
                 Some(FadeEndMode::BounceRepeat),
             ),
             Button,
@@ -237,7 +237,7 @@ impl CollectedFoxUI {
                     } else {
                         Some(FadeEndMode::BounceOnce(Box::new(None)))
                     };
-                    fade.speed = FadeSpeed::Fast;
+                    fade.speed = Speed::Fast;
                 }
             }
         }
