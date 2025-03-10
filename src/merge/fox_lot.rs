@@ -26,6 +26,7 @@ use once_cell::sync::Lazy;
 use crate::{
     app_state::{AppState, Merge},
     clickable::{Clickable, ClickableSet, Hovered},
+    fox::Fox,
     FollowMouse, Money, Optional, Size,
 };
 
@@ -44,7 +45,7 @@ impl FoxLot {
         commands: &mut Commands,
         asset_server: &Res<AssetServer>,
         translation: Vec3,
-        level: i32,
+        level: u32,
     ) {
         commands
             .spawn((
@@ -66,7 +67,7 @@ impl FoxLot {
         asset_server: &Res<AssetServer>,
         x: i32,
         y: i32,
-        level: i32,
+        level: u32,
     ) {
         Self::spawn(
             commands,
@@ -93,14 +94,22 @@ impl FoxLot {
     }
 }
 #[derive(Component)]
-struct FoxSanctuary {
-    #[allow(dead_code)]
-    level: i32,
+pub(crate) struct FoxSanctuary {
+    level: u32,
+    pub(crate) foxes: Vec<Fox>,
 }
 impl FoxSanctuary {
-    fn spawn(fox_lot: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>, level: i32) {
+    pub(crate) const CAPACITY_PER_LEVEL: u32 = 10;
+
+    const fn new(level: u32) -> Self {
+        Self {
+            level,
+            foxes: vec![],
+        }
+    }
+    fn spawn(fox_lot: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>, level: u32) {
         fox_lot.spawn((
-            Self { level },
+            Self::new(level),
             Transform::from_xyz(0., 0., 1.),
             Sprite {
                 image: asset_server.load(format!("images/fox{level}.png")),
@@ -112,6 +121,16 @@ impl FoxSanctuary {
                 .set_mouseup_event(FoxSanctuaryMouseupEvent),
             Size(*fox_lot_statics::SIZE),
         ));
+    }
+    pub(crate) const fn capacity(&self) -> u32 {
+        self.level * Self::CAPACITY_PER_LEVEL
+    }
+    pub(crate) fn has_room(&self) -> bool {
+        (self.foxes.len() as u32) < self.capacity()
+    }
+
+    pub(crate) const fn level(&self) -> u32 {
+        self.level
     }
 }
 #[derive(Resource)]

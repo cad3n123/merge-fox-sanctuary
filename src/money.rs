@@ -6,7 +6,7 @@ use std::{
 
 use bevy::ecs::system::Resource;
 
-#[derive(Resource, Clone, PartialEq, Eq)]
+#[derive(Resource, Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Money {
     dollars: Dollar,
     cents: Cent,
@@ -168,8 +168,24 @@ impl Display for Money {
         )
     }
 }
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct Dollar(u64);
+impl From<Dollar> for Money {
+    fn from(value: Dollar) -> Self {
+        Self {
+            dollars: value,
+            cents: Cent(0),
+        }
+    }
+}
+impl From<Cent> for Money {
+    fn from(value: Cent) -> Self {
+        Self {
+            dollars: Dollar(0),
+            cents: value,
+        }
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct Dollar(pub(crate) u64);
 impl Dollar {
     const ZERO: Self = Self(0);
 }
@@ -221,8 +237,8 @@ impl Display for Dollar {
         write!(f, "{}", self.0)
     }
 }
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct Cent(u8);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct Cent(pub(crate) u8);
 impl Cent {
     const ZERO: Self = Self(0);
 }

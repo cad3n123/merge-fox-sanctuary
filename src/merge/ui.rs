@@ -8,10 +8,7 @@ use bevy::{
         system::{Commands, Query, Res, ResMut},
     },
     hierarchy::{BuildChildren, ChildBuild, ChildBuilder},
-    state::{
-        condition::in_state,
-        state::NextState,
-    },
+    state::{condition::in_state, state::NextState},
     text::TextFont,
     ui::{
         widget::{Button, Text},
@@ -23,10 +20,11 @@ use bevy::{
 
 use crate::{
     app_state::{AppState, Merge},
+    search::{cell::LEVEL_CELLS, Level},
     ui::{CoinUI, MoneyContainer, RootTrait},
 };
 
-use super::fox_lot::FoxLotPrice;
+use super::fox_lot::{FoxLotPrice, FoxSanctuary};
 
 #[derive(Component)]
 struct Root;
@@ -134,7 +132,9 @@ impl SearchButton {
     #[allow(clippy::needless_pass_by_value)]
     fn system(
         mut next_app_state: ResMut<NextState<AppState>>,
+        level: Res<Level>,
         search_button_interaction_q: Query<&Interaction, (Changed<Interaction>, With<Self>)>,
+        fox_sanctuaries_q: Query<&FoxSanctuary>,
     ) {
         if search_button_interaction_q.is_empty() {
             return;
@@ -142,7 +142,15 @@ impl SearchButton {
 
         let search_button_interaction = search_button_interaction_q.single();
         if *search_button_interaction == Interaction::Pressed {
-            next_app_state.set(AppState::Search);
+            // Check fox sanctuary capacity
+            let total_foxes = &LEVEL_CELLS[level.0].1;
+            let mut capacity = 0;
+            for fox_sanctuary in &fox_sanctuaries_q {
+                capacity += fox_sanctuary.capacity();
+            }
+            if capacity >= total_foxes.0 {
+                next_app_state.set(AppState::Search);
+            }
         }
     }
 }

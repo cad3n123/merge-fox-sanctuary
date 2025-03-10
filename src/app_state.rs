@@ -3,7 +3,7 @@ use bevy::{
     ecs::{
         component::Component,
         entity::Entity,
-        query::{With, Without},
+        query::With,
         schedule::{IntoSystemConfigs, SystemSet},
         system::{Commands, Query},
     },

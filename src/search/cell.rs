@@ -201,7 +201,7 @@ enum ObstacleType {
     Stones,
     Log,
 }
-static LEVEL_CELLS: Lazy<Vec<(Vec<Vec<Cell>>, TotalFoxes)>> = Lazy::new(|| {
+pub(crate) static LEVEL_CELLS: Lazy<Vec<(Vec<Vec<Cell>>, TotalFoxes)>> = Lazy::new(|| {
     vec![cells_from_level_layout(
         &vec![
             "C   ", //

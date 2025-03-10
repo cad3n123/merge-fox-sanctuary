@@ -6,6 +6,8 @@ use rand::distr::{Distribution, StandardUniform};
 use strum::EnumCount;
 use strum_macros::{EnumCount, FromRepr};
 
+use crate::{money::Cent, Money};
+
 macro_rules! impl_enum_distribution {
     ($t:ty) => {
         impl Distribution<$t> for StandardUniform {
@@ -176,17 +178,17 @@ pub(crate) struct Fox {
 }
 impl Fox {
     pub(crate) fn new_random(species: FoxSpecies) -> Self {
-        let primary_problem: Problem = rand::random();
+        let primary_problem = Problem::new(rand::random());
         Self {
             species,
             name: rand::random(),
             age: rand::random(),
-            favorite_activity: rand::random(),
-            primary_problem,
+            favorite_activity: Activity::new(),
+            primary_problem: primary_problem.clone(),
             secondary_problem: {
-                let mut secondary_problem: Problem = rand::random();
-                while secondary_problem == primary_problem {
-                    secondary_problem = rand::random();
+                let mut secondary_problem = Problem::new(rand::random());
+                while secondary_problem.problem_type == primary_problem.problem_type {
+                    secondary_problem.problem_type = rand::random();
                 }
                 secondary_problem
             },
@@ -201,21 +203,45 @@ impl Fox {
         &self.age
     }
 
-    pub(crate) const fn favorite_activity(&self) -> Activity {
-        self.favorite_activity
+    pub(crate) const fn favorite_activity_type(&self) -> ActivityType {
+        self.favorite_activity.activity_type
     }
 
-    pub(crate) const fn primary_problem(&self) -> Problem {
-        self.primary_problem
+    pub(crate) const fn primary_problem_type(&self) -> ProblemType {
+        self.primary_problem.problem_type
     }
 
     pub(crate) const fn species(&self) -> FoxSpecies {
         self.species
     }
+
+    pub(crate) fn income(&self) -> Money {
+        Money::from(Cent(
+            10 + if self.favorite_activity.satisfied {
+                10
+            } else {
+                0
+            } + if self.primary_problem.fixed { 10 } else { 0 }
+                + if self.secondary_problem.fixed { 10 } else { 0 },
+        ))
+    }
+}
+#[derive(Debug, Clone)]
+struct Activity {
+    activity_type: ActivityType,
+    satisfied: bool,
+}
+impl Activity {
+    fn new() -> Self {
+        Self {
+            activity_type: rand::random(),
+            satisfied: false,
+        }
+    }
 }
 #[derive(Debug, FromRepr, EnumCount, PartialEq, Eq, Clone, Copy)]
 #[repr(u32)]
-pub(crate) enum Activity {
+pub(crate) enum ActivityType {
     Pouncing,
     Digging,
     Playing,
@@ -224,7 +250,7 @@ pub(crate) enum Activity {
     Exploring,
     Sunbathing,
 }
-impl Display for Activity {
+impl Display for ActivityType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -241,10 +267,26 @@ impl Display for Activity {
         )
     }
 }
-impl_enum_distribution!(Activity);
+#[derive(Debug, Clone)]
+struct Problem {
+    #[allow(clippy::struct_field_names)]
+    problem_type: ProblemType,
+    known: bool,
+    fixed: bool,
+}
+impl Problem {
+    const fn new(problem_type: ProblemType) -> Self {
+        Self {
+            problem_type,
+            known: false,
+            fixed: false,
+        }
+    }
+}
+impl_enum_distribution!(ActivityType);
 #[derive(Debug, FromRepr, EnumCount, PartialEq, Eq, Clone, Copy)]
 #[repr(u32)]
-pub(crate) enum Problem {
+pub(crate) enum ProblemType {
     Malnourished,
     FracturedBone,
     Parasite,
@@ -252,7 +294,7 @@ pub(crate) enum Problem {
     Trauma,
     Poisoned,
 }
-impl Display for Problem {
+impl Display for ProblemType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -268,4 +310,4 @@ impl Display for Problem {
         )
     }
 }
-impl_enum_distribution!(Problem);
+impl_enum_distribution!(ProblemType);

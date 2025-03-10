@@ -15,7 +15,7 @@ use bevy::{
     math::{Vec2, Vec3Swizzles},
     state::{
         condition::in_state,
-        state::{NextState, OnExit, State},
+        state::{NextState, State},
     },
     text::{TextColor, TextFont},
     transform::components::GlobalTransform,
@@ -189,7 +189,7 @@ impl FoxCollectionUI {
     }
 }
 #[derive(Component)]
-struct CollectedFoxUI(Fox);
+pub(crate) struct CollectedFoxUI(pub(super) Fox);
 impl CollectedFoxUI {
     const SIZE: f32 = Cell::SIZE;
 
@@ -277,8 +277,8 @@ impl CollectedFoxTooltip {
                     fox.name().to_string(),
                     format!("Species: {}", fox.species()),
                     format!("Age: {}", fox.age()),
-                    format!("Favorite Activity: {}", fox.favorite_activity()),
-                    format!("Primary Problem: {}", fox.primary_problem()),
+                    format!("Favorite Activity: {}", fox.favorite_activity_type()),
+                    format!("Primary Problem: {}", fox.primary_problem_type()),
                 ] {
                     parent.spawn((Text::new(text), TextColor::BLACK));
                 }
@@ -303,8 +303,7 @@ impl Plugin for UIPlugin {
                     CollectedFoxUI::no_mouse,
                 )
                     .run_if(in_state(AppState::Search)),
-            )
-            .add_systems(OnExit(AppState::Search), exit);
+            );
     }
 }
 #[allow(clippy::needless_pass_by_value)]
@@ -342,11 +341,5 @@ fn on_fox_caught(
             .with_children(|fox_collection_ui| {
                 CollectedFoxUI::spawn(fox_collection_ui, &asset_server, fox);
             });
-    }
-}
-#[allow(clippy::needless_pass_by_value)]
-fn exit(mut commands: Commands, collected_fox_uis_q: Query<Entity, With<CollectedFoxUI>>) {
-    for entity in &collected_fox_uis_q {
-        commands.entity(entity).despawn_recursive();
     }
 }

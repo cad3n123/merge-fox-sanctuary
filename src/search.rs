@@ -1,31 +1,34 @@
+use std::cmp::Ordering;
+
 use animation::AnimationPlugin;
 use bevy::{
     app::{App, Plugin},
     asset::AssetServer,
     ecs::{
         entity::Entity,
-        system::{Commands, Res, ResMut, Resource},
+        system::{Commands, Query, Res, ResMut, Resource},
     },
+    hierarchy::DespawnRecursiveExt,
     state::{
         app::AppExtStates,
-        state::{NextState, States},
+        state::{NextState, OnExit, States},
     },
     window::SystemCursorIcon,
     winit::cursor::{CursorIcon, CustomCursor},
 };
 use cell::CellPlugin;
-use ui::UIPlugin;
+use ui::{CollectedFoxUI, UIPlugin};
 
-use crate::Money;
+use crate::{app_state::AppState, fox::Fox, merge::fox_lot::FoxSanctuary, Money};
 
 pub mod animation;
 pub mod cell;
 pub mod ui;
 
 #[derive(Resource, Default)]
-pub(crate) struct Level(usize);
+pub(crate) struct Level(pub(crate) usize);
 #[derive(Resource, Default, Debug, Clone, Copy)]
-pub(crate) struct TotalFoxes(u32);
+pub(crate) struct TotalFoxes(pub(crate) u32);
 #[derive(Resource, Default, Debug, Clone, Copy)]
 pub(crate) struct FoxesUncovered(u32);
 #[derive(Resource)]
@@ -70,6 +73,47 @@ impl Plugin for SearchPlugin {
             .insert_resource(TotalFoxes::default())
             .insert_resource(FoxesUncovered::default())
             .insert_resource(CatchPrice::default())
-            .init_state::<SearchState>();
+            .init_state::<SearchState>()
+            .add_systems(OnExit(AppState::Search), exit);
+    }
+}
+#[allow(clippy::needless_pass_by_value)]
+pub(crate) fn exit(
+    mut commands: Commands,
+    collected_fox_uis_q: Query<(Entity, &CollectedFoxUI)>,
+    mut fox_sanctuaries_q: Query<&mut FoxSanctuary>,
+) {
+    let mut foxes: Vec<Fox> = Vec::with_capacity(collected_fox_uis_q.iter().len());
+    for (entity, collected_fox_ui) in &collected_fox_uis_q {
+        commands.entity(entity).despawn_recursive();
+        foxes.push(collected_fox_ui.0.clone());
+    }
+    while !foxes.is_empty() {
+        let mut best_sanctuaries = vec![];
+        for fox_sanctuary in &mut fox_sanctuaries_q {
+            if !fox_sanctuary.has_room() {
+                continue;
+            }
+            if best_sanctuaries.is_empty() {
+                best_sanctuaries = vec![fox_sanctuary];
+            } else {
+                match fox_sanctuary.level().cmp(&best_sanctuaries[0].level()) {
+                    Ordering::Greater => best_sanctuaries = vec![fox_sanctuary],
+                    Ordering::Equal => best_sanctuaries.push(fox_sanctuary),
+                    Ordering::Less => {}
+                }
+            }
+        }
+        assert_ne!(best_sanctuaries.len(), 0);
+        let mut current_sanctuary = 0;
+        while !foxes.is_empty() && current_sanctuary < best_sanctuaries.len() {
+            if best_sanctuaries[current_sanctuary].has_room() {
+                best_sanctuaries[current_sanctuary]
+                    .foxes
+                    .push(foxes.pop().unwrap());
+            } else {
+                current_sanctuary += 1;
+            }
+        }
     }
 }
