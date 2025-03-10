@@ -1,5 +1,13 @@
 use std::{fmt::Display, sync::Arc};
 
+use bevy::{
+    color::{palettes::tailwind::ORANGE_400, Color, Srgba},
+    ecs::component::Component,
+    hierarchy::{ChildBuild, ChildBuilder},
+    math::{Vec2, Vec3},
+    sprite::Sprite,
+    transform::components::Transform,
+};
 use enum_map::Enum;
 use once_cell::sync::Lazy;
 use rand::distr::{Distribution, StandardUniform};
@@ -167,7 +175,7 @@ impl Distribution<Age> for StandardUniform {
         Age(rng.random_range(0..Age::MAX_RANDOM_AGE.0))
     }
 }
-#[derive(Debug, Clone)]
+#[derive(Component, Debug, Clone)]
 pub(crate) struct Fox {
     species: FoxSpecies,
     name: Name,
@@ -176,7 +184,20 @@ pub(crate) struct Fox {
     primary_problem: Problem,
     secondary_problem: Problem,
 }
+static FOX_COLOR: Lazy<Color> = Lazy::new(|| Color::from(Fox::SRGBA));
 impl Fox {
+    const WIDTH: f32 = 10.;
+    const HEIGHT: f32 = Self::WIDTH / 2.;
+    const SRGBA: Srgba = ORANGE_400;
+
+    pub(crate) fn spawn(&self, fox_sanctuary: &mut ChildBuilder<'_>, translation: Vec3) {
+        fox_sanctuary.spawn((
+            self.clone(),
+            Transform::from_translation(translation),
+            Sprite::from_color(*FOX_COLOR, Vec2::new(Self::WIDTH, Self::HEIGHT)),
+        ));
+    }
+
     pub(crate) fn new_random(species: FoxSpecies) -> Self {
         let primary_problem = Problem::new(rand::random());
         Self {

@@ -1,5 +1,5 @@
 use bevy::{
-    app::{App, Plugin, Startup},
+    app::{App, Plugin},
     ecs::{
         schedule::IntoSystemConfigs,
         system::{Query, ResMut, Resource},
@@ -21,13 +21,23 @@ impl Default for Income {
         Self(Money::ZERO)
     }
 }
+#[derive(Resource, Default)]
+pub(crate) struct FoxStorageInfo {
+    pub(crate) total_foxes: u32,
+    total_capacity: u32,
+}
+impl FoxStorageInfo {
+    pub(crate) const fn remaining_capacity(&self) -> u32 {
+        self.total_capacity - self.total_foxes
+    }
+}
 
 pub(crate) struct MergePlugin;
 impl Plugin for MergePlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(Income::default())
+        app.insert_resource(FoxStorageInfo::default())
+            .insert_resource(Income::default())
             .add_plugins((UIPlugin, FoxLotPlugin))
-            .add_systems(Startup, calculate_income)
             .add_systems(
                 OnEnter(AppState::Merge),
                 calculate_income.after(search::exit),

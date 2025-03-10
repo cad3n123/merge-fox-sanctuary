@@ -39,7 +39,7 @@ impl Fadable for ImageNode {
 #[derive(Component)]
 pub(crate) struct Fade {
     pub(crate) mode: FadeMode,
-    speed: FadeSpeed,
+    pub(crate) speed: FadeSpeed,
     pub(crate) end_mode: Option<FadeEndMode>,
     lucency: u32,
 }

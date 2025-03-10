@@ -5,12 +5,12 @@ use bevy::{
         entity::Entity,
         query::With,
         schedule::{IntoSystemConfigs, SystemSet},
-        system::{Commands, Query},
+        system::{Commands, Query, ResMut},
     },
     render::view::Visibility,
     state::{
         app::AppExtStates,
-        state::{OnEnter, OnExit, States},
+        state::{NextState, OnEnter, OnExit, States},
     },
 };
 
@@ -19,6 +19,7 @@ use crate::Clickable;
 #[derive(States, Default, Debug, Hash, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AppState {
     #[default]
+    None,
     Merge,
     Search,
 }
@@ -89,8 +90,11 @@ pub(crate) fn app_state_exit<T: Component>(
 }
 pub(crate) fn startup(
     mut commands: Commands,
+    mut app_state: ResMut<NextState<AppState>>,
     mut entities_q: Query<(Entity, Option<&mut Clickable>), With<Search>>,
 ) {
+    app_state.set(AppState::Merge);
+
     for (entity, clickable) in &mut entities_q {
         commands.entity(entity).insert(Visibility::Hidden);
         if let Some(mut clickable) = clickable {

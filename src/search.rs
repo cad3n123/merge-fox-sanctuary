@@ -19,7 +19,12 @@ use bevy::{
 use cell::CellPlugin;
 use ui::{CollectedFoxUI, UIPlugin};
 
-use crate::{app_state::AppState, fox::Fox, merge::fox_lot::FoxSanctuary, Money};
+use crate::{
+    app_state::AppState,
+    fox::Fox,
+    merge::{fox_lot::FoxSanctuary, FoxStorageInfo},
+    Money,
+};
 
 pub mod animation;
 pub mod cell;
@@ -80,8 +85,9 @@ impl Plugin for SearchPlugin {
 #[allow(clippy::needless_pass_by_value)]
 pub(crate) fn exit(
     mut commands: Commands,
+    mut fox_storage_info: ResMut<FoxStorageInfo>,
     collected_fox_uis_q: Query<(Entity, &CollectedFoxUI)>,
-    mut fox_sanctuaries_q: Query<&mut FoxSanctuary>,
+    mut fox_sanctuaries_q: Query<(Entity, &mut FoxSanctuary)>,
 ) {
     let mut foxes: Vec<Fox> = Vec::with_capacity(collected_fox_uis_q.iter().len());
     for (entity, collected_fox_ui) in &collected_fox_uis_q {
@@ -91,13 +97,13 @@ pub(crate) fn exit(
     while !foxes.is_empty() {
         let mut best_sanctuaries = vec![];
         for fox_sanctuary in &mut fox_sanctuaries_q {
-            if !fox_sanctuary.has_room() {
+            if !fox_sanctuary.1.has_room() {
                 continue;
             }
             if best_sanctuaries.is_empty() {
                 best_sanctuaries = vec![fox_sanctuary];
             } else {
-                match fox_sanctuary.level().cmp(&best_sanctuaries[0].level()) {
+                match fox_sanctuary.1.level().cmp(&best_sanctuaries[0].1.level()) {
                     Ordering::Greater => best_sanctuaries = vec![fox_sanctuary],
                     Ordering::Equal => best_sanctuaries.push(fox_sanctuary),
                     Ordering::Less => {}
@@ -107,10 +113,14 @@ pub(crate) fn exit(
         assert_ne!(best_sanctuaries.len(), 0);
         let mut current_sanctuary = 0;
         while !foxes.is_empty() && current_sanctuary < best_sanctuaries.len() {
-            if best_sanctuaries[current_sanctuary].has_room() {
-                best_sanctuaries[current_sanctuary]
-                    .foxes
-                    .push(foxes.pop().unwrap());
+            if best_sanctuaries[current_sanctuary].1.has_room() {
+                let entity = best_sanctuaries[current_sanctuary].0;
+                best_sanctuaries[current_sanctuary].1.push_fox(
+                    &mut commands,
+                    entity,
+                    foxes.pop().unwrap(),
+                );
+                fox_storage_info.total_foxes += 1;
             } else {
                 current_sanctuary += 1;
             }

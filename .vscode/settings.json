@@ -4,6 +4,7 @@
     "gtransform",
     "gtransforms",
     "repr",
-    "Srgba"
+    "Srgba",
+    "winit"
   ]
 }

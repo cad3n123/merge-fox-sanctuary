@@ -30,16 +30,19 @@ use crate::{
     FollowMouse, Money, Optional, Size,
 };
 
+use super::FoxStorageInfo;
+
 #[derive(Component)]
 pub(crate) struct FoxLot;
 mod fox_lot_statics {
     use super::{FoxLot, Lazy, Vec2};
 
-    pub static SIZE: Lazy<Vec2> = Lazy::new(|| Vec2::new(100., 100.));
-    pub static PADDED_SIZE: Lazy<Vec2> = Lazy::new(|| *SIZE + FoxLot::PADDING);
+    pub static SIZE: Lazy<Vec2> = Lazy::new(|| Vec2::splat(FoxLot::SIZE));
+    pub static MARGIN_SIZE: Lazy<Vec2> = Lazy::new(|| *SIZE + FoxLot::MARGIN);
 }
 impl FoxLot {
-    const PADDING: f32 = 10.;
+    const SIZE: f32 = 150.;
+    const MARGIN: f32 = 10.;
 
     fn spawn(
         commands: &mut Commands,
@@ -73,8 +76,8 @@ impl FoxLot {
             commands,
             asset_server,
             Vec3 {
-                x: x as f32 * fox_lot_statics::PADDED_SIZE.x,
-                y: y as f32 * fox_lot_statics::PADDED_SIZE.y,
+                x: x as f32 * fox_lot_statics::MARGIN_SIZE.x,
+                y: y as f32 * fox_lot_statics::MARGIN_SIZE.y,
                 z: 0.,
             },
             level,
@@ -128,9 +131,14 @@ impl FoxSanctuary {
     pub(crate) fn has_room(&self) -> bool {
         (self.foxes.len() as u32) < self.capacity()
     }
-
     pub(crate) const fn level(&self) -> u32 {
         self.level
+    }
+    pub(crate) fn push_fox(&mut self, commands: &mut Commands, self_entity: Entity, fox: Fox) {
+        commands.entity(self_entity).with_children(|fox_sanctuary| {
+            fox.spawn(fox_sanctuary, Vec3::ZERO);
+        });
+        self.foxes.push(fox);
     }
 }
 #[derive(Resource)]
@@ -165,15 +173,12 @@ impl Plugin for FoxLotPlugin {
             .add_event::<FoxSanctuaryMouseupEvent>()
             .add_systems(
                 Update,
-                select_fox_sanctuary
-                    .before(ClickableSet)
-                    .before(FollowMouse::system)
-                    .run_if(in_state(AppState::Merge)),
-            )
-            .add_systems(
-                Update,
-                (mousedown_fox_sanctuary, buy_fox_sanctuary)
-                    .after(ClickableSet)
+                (
+                    (select_fox_sanctuary
+                        .before(ClickableSet)
+                        .before(FollowMouse::system)),
+                    (mousedown_fox_sanctuary, buy_fox_sanctuary).after(ClickableSet),
+                )
                     .run_if(in_state(AppState::Merge)),
             );
     }
@@ -204,6 +209,7 @@ fn buy_fox_sanctuary(
     asset_server: Res<AssetServer>,
     mut money: ResMut<Money>,
     mut fox_lot_price: ResMut<FoxLotPrice>,
+    mut fox_storage_info: ResMut<FoxStorageInfo>,
     mut fox_sanctuary_mouseup_events: EventReader<FoxSanctuaryMouseupEvent>,
     mut fox_sanctuaries_q: Query<(&mut FoxSanctuary, &mut Sprite)>,
 ) {
@@ -219,6 +225,7 @@ fn buy_fox_sanctuary(
                     fox_sanctuary.level += 1;
                     fox_sanctuary_sprite.image =
                         asset_server.load(format!("images/fox{}.png", fox_sanctuary.level));
+                    fox_storage_info.total_capacity += FoxSanctuary::CAPACITY_PER_LEVEL;
                 }
             }
         }
@@ -242,22 +249,22 @@ fn select_fox_sanctuary(
         {
             // Move Fox Sanctuary
             let follow_parent = follow_mouse.parent.unwrap();
+            let mut entity_commands = commands.entity(entity);
             if let Some((hovered_entity, hovered_parent, ref mut hovered_transform)) =
                 hovered_fox_sanctuary_q
             {
-                commands.entity(entity).set_parent(hovered_parent.get());
+                entity_commands.set_parent(hovered_parent.get());
                 commands.entity(hovered_entity).set_parent(follow_parent);
-                hovered_transform.translation.x = 0.;
-                hovered_transform.translation.y = 0.;
+                *fox_sanctuary_transform = **hovered_transform;
+                **hovered_transform = follow_mouse.previous_transform;
             } else {
-                commands.entity(entity).set_parent(follow_parent);
+                entity_commands.set_parent(follow_parent);
+                *fox_sanctuary_transform = follow_mouse.previous_transform;
             }
             commands
                 .entity(entity)
                 .remove::<FollowMouse>()
                 .remove::<Hovered>();
-            fox_sanctuary_transform.translation.x = 0.;
-            fox_sanctuary_transform.translation.y = 0.;
         }
     }
 }

@@ -24,7 +24,7 @@ use crate::{
     ui::{CoinUI, MoneyContainer, RootTrait},
 };
 
-use super::fox_lot::{FoxLotPrice, FoxSanctuary};
+use super::{fox_lot::FoxLotPrice, FoxStorageInfo};
 
 #[derive(Component)]
 struct Root;
@@ -133,8 +133,8 @@ impl SearchButton {
     fn system(
         mut next_app_state: ResMut<NextState<AppState>>,
         level: Res<Level>,
+        fox_storage_info: Res<FoxStorageInfo>,
         search_button_interaction_q: Query<&Interaction, (Changed<Interaction>, With<Self>)>,
-        fox_sanctuaries_q: Query<&FoxSanctuary>,
     ) {
         if search_button_interaction_q.is_empty() {
             return;
@@ -144,11 +144,7 @@ impl SearchButton {
         if *search_button_interaction == Interaction::Pressed {
             // Check fox sanctuary capacity
             let total_foxes = &LEVEL_CELLS[level.0].1;
-            let mut capacity = 0;
-            for fox_sanctuary in &fox_sanctuaries_q {
-                capacity += fox_sanctuary.capacity();
-            }
-            if capacity >= total_foxes.0 {
+            if fox_storage_info.remaining_capacity() >= total_foxes.0 {
                 next_app_state.set(AppState::Search);
             }
         }

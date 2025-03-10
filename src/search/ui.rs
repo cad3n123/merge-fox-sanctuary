@@ -236,7 +236,8 @@ impl CollectedFoxUI {
                         None
                     } else {
                         Some(FadeEndMode::BounceOnce(Box::new(None)))
-                    }
+                    };
+                    fade.speed = FadeSpeed::Fast;
                 }
             }
         }
