@@ -23,6 +23,7 @@ use money::Money;
 use search::SearchPlugin;
 use ui::UIPlugin;
 
+#[allow(dead_code)]
 trait MyVec2 {
     fn into_vec3_with_z(self, z: f32) -> Vec3;
     fn into_vec3(self) -> Vec3;

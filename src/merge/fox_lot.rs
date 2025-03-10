@@ -22,6 +22,7 @@ use bevy::{
     utils::default,
 };
 use once_cell::sync::Lazy;
+use rand::Rng;
 
 use crate::{
     app_state::{AppState, Merge},
@@ -32,17 +33,17 @@ use crate::{
 
 use super::FoxStorageInfo;
 
+static SIZE: Lazy<Vec2> = Lazy::new(|| Vec2::splat(FoxLot::SIZE));
+static MARGIN_SIZE: Lazy<Vec2> = Lazy::new(|| *SIZE + FoxLot::MARGIN);
+static INNER_PADDING_SIZE: Lazy<Vec2> = Lazy::new(|| *SIZE - FoxLot::PADDING);
+static MAX_FOX_POSITION: Lazy<Vec2> = Lazy::new(|| *INNER_PADDING_SIZE * 0.5);
+static MIN_FOX_POSITION: Lazy<Vec2> = Lazy::new(|| -*MAX_FOX_POSITION);
 #[derive(Component)]
 pub(crate) struct FoxLot;
-mod fox_lot_statics {
-    use super::{FoxLot, Lazy, Vec2};
-
-    pub static SIZE: Lazy<Vec2> = Lazy::new(|| Vec2::splat(FoxLot::SIZE));
-    pub static MARGIN_SIZE: Lazy<Vec2> = Lazy::new(|| *SIZE + FoxLot::MARGIN);
-}
 impl FoxLot {
     const SIZE: f32 = 150.;
     const MARGIN: f32 = 10.;
+    const PADDING: f32 = 45.;
 
     fn spawn(
         commands: &mut Commands,
@@ -57,7 +58,7 @@ impl FoxLot {
                 Transform::from_translation(translation),
                 Sprite {
                     image: asset_server.load("images/fox-lot.png"),
-                    custom_size: Some(*fox_lot_statics::SIZE),
+                    custom_size: Some(*SIZE),
                     ..default()
                 },
             ))
@@ -76,8 +77,8 @@ impl FoxLot {
             commands,
             asset_server,
             Vec3 {
-                x: x as f32 * fox_lot_statics::MARGIN_SIZE.x,
-                y: y as f32 * fox_lot_statics::MARGIN_SIZE.y,
+                x: x as f32 * MARGIN_SIZE.x,
+                y: y as f32 * MARGIN_SIZE.y,
                 z: 0.,
             },
             level,
@@ -116,13 +117,13 @@ impl FoxSanctuary {
             Transform::from_xyz(0., 0., 1.),
             Sprite {
                 image: asset_server.load(format!("images/fox{level}.png")),
-                custom_size: Some(*fox_lot_statics::SIZE),
+                custom_size: Some(*SIZE),
                 ..default()
             },
             Clickable::new()
                 .set_mousedown_event(FoxSanctuaryMousedownEvent)
                 .set_mouseup_event(FoxSanctuaryMouseupEvent),
-            Size(*fox_lot_statics::SIZE),
+            Size(*SIZE),
         ));
     }
     pub(crate) const fn capacity(&self) -> u32 {
@@ -135,8 +136,16 @@ impl FoxSanctuary {
         self.level
     }
     pub(crate) fn push_fox(&mut self, commands: &mut Commands, self_entity: Entity, fox: Fox) {
+        let mut rng = rand::rng();
         commands.entity(self_entity).with_children(|fox_sanctuary| {
-            fox.spawn(fox_sanctuary, Vec3::ZERO);
+            fox.spawn(
+                fox_sanctuary,
+                Vec3::new(
+                    rng.random_range(MIN_FOX_POSITION.x..MAX_FOX_POSITION.x),
+                    rng.random_range(MIN_FOX_POSITION.y..MAX_FOX_POSITION.y),
+                    1.,
+                ),
+            );
         });
         self.foxes.push(fox);
     }
