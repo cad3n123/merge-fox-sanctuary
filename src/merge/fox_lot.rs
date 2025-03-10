@@ -6,18 +6,23 @@ use std::{
 use bevy::{
     app::{App, Plugin, Update},
     asset::AssetServer,
+    color::{
+        palettes::{css::BLACK, tailwind::GRAY_300},
+        Color, Srgba,
+    },
     ecs::{
         component::Component,
         entity::Entity,
         event::{Event, EventReader},
-        query::{With, Without},
-        schedule::IntoSystemConfigs,
+        query::{Changed, With, Without},
+        schedule::{common_conditions::resource_changed, IntoSystemConfigs},
         system::{Commands, Query, Res, ResMut, Resource, Single},
     },
-    hierarchy::{BuildChildren, ChildBuild, ChildBuilder, Parent},
+    hierarchy::{BuildChildren, ChildBuild, ChildBuilder, Children, DespawnRecursiveExt, Parent},
     math::{Vec2, Vec3},
     sprite::Sprite,
     state::condition::in_state,
+    text::{JustifyText, Text2d, TextBounds, TextColor, TextFont, TextLayout},
     transform::{commands::BuildChildrenTransformExt, components::Transform},
     utils::default,
 };
@@ -112,19 +117,27 @@ impl FoxSanctuary {
         }
     }
     fn spawn(fox_lot: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>, level: u32) {
-        fox_lot.spawn((
-            Self::new(level),
-            Transform::from_xyz(0., 0., 1.),
-            Sprite {
-                image: asset_server.load(format!("images/fox{level}.png")),
-                custom_size: Some(*SIZE),
-                ..default()
-            },
-            Clickable::new()
-                .set_mousedown_event(FoxSanctuaryMousedownEvent)
-                .set_mouseup_event(FoxSanctuaryMouseupEvent),
-            Size(*SIZE),
-        ));
+        fox_lot
+            .spawn((
+                Self::new(level),
+                Transform::from_xyz(0., 0., 1.),
+                Sprite {
+                    image: asset_server.load(format!("images/fox{level}.png")),
+                    custom_size: Some(*SIZE),
+                    ..default()
+                },
+                Clickable::new()
+                    .set_mousedown_event(FoxSanctuaryMousedownEvent)
+                    .set_mouseup_event(FoxSanctuaryMouseupEvent),
+                Size(*SIZE),
+            ))
+            .with_children(|fox_sanctuary| {
+                PriceContainer::spawn(
+                    fox_sanctuary,
+                    asset_server,
+                    Vec3::new(0., -INNER_PADDING_SIZE.y * 0.5, 2.),
+                );
+            });
     }
     pub(crate) const fn capacity(&self) -> u32 {
         self.level * Self::CAPACITY_PER_LEVEL
@@ -150,6 +163,87 @@ impl FoxSanctuary {
         self.foxes.push(fox);
     }
 }
+#[derive(Component)]
+pub(crate) struct PriceContainer;
+impl PriceContainer {
+    const FONT_SIZE: f32 = 30.;
+
+    pub(crate) fn spawn(
+        fox_lot: &mut ChildBuilder<'_>,
+        asset_server: &Res<AssetServer>,
+        translation: Vec3,
+    ) {
+        fox_lot
+            .spawn((
+                Self,
+                Sprite {
+                    color: Color::Srgba(Srgba::new(1., 1., 1., 0.6)),
+                    custom_size: Some(Vec2::new(2.75 * Self::FONT_SIZE, 1.25 * Self::FONT_SIZE)),
+                    ..default()
+                },
+                Transform::from_translation(translation),
+            ))
+            .with_children(|price_container| {
+                PriceContainerCoin::spawn(price_container, &asset_server);
+                PriceContainerText::spawn(price_container);
+            });
+    }
+    #[allow(clippy::needless_pass_by_value)]
+    fn update_text(
+        price_containers_q: Query<&Children, With<Self>>,
+        price_container_texts_q: Query<
+            (&Parent, &TextBounds, &Transform),
+            (With<PriceContainerText>, Changed<Text2d>),
+        >,
+        price_container_coins_q: Query<(&Sprite, &Transform), With<PriceContainerCoin>>,
+    ) -> f32 {
+        for (price_container_text_parent, text_bounds, price_container_text_transform) in
+            &price_container_texts_q
+        {
+            let price_container = price_containers_q.get(price_container_text_parent.get());
+        }
+        0.
+    }
+}
+#[derive(Component)]
+struct PriceContainerCoin;
+impl PriceContainerCoin {
+    fn spawn(price_container: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>) {
+        price_container.spawn((
+            Self,
+            Sprite {
+                image: asset_server.load("images/coin.png"),
+                custom_size: Some(Vec2::splat(PriceContainer::FONT_SIZE)),
+                ..default()
+            },
+            Transform::from_xyz(-0.65 * PriceContainer::FONT_SIZE, 0., 1.),
+        ));
+    }
+}
+#[derive(Component)]
+struct PriceContainerText;
+impl PriceContainerText {
+    fn spawn(price_container: &mut ChildBuilder<'_>) {
+        price_container.spawn((
+            Self,
+            Text2d::new("0"),
+            TextFont::from_font_size(PriceContainer::FONT_SIZE),
+            TextLayout::new_with_justify(JustifyText::Left),
+            TextColor::from(BLACK),
+            Transform::from_xyz(0.65 * PriceContainer::FONT_SIZE, 0., 1.),
+        ));
+    }
+
+    #[allow(clippy::needless_pass_by_value)]
+    fn update(
+        mut fox_lot_price_ui_q: Query<&mut Text2d, With<Self>>,
+        fox_lot_price: Res<FoxLotPrice>,
+    ) {
+        for mut fox_lot_price_ui in &mut fox_lot_price_ui_q {
+            fox_lot_price_ui.0 = fox_lot_price.to_string();
+        }
+    }
+}
 #[derive(Resource)]
 pub(crate) struct FoxLotPrice(Money);
 mod fox_lot_price_statics {
@@ -166,7 +260,7 @@ impl Default for FoxLotPrice {
 }
 impl Display for FoxLotPrice {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.0.dollars_string())
     }
 }
 #[derive(Event, Debug)]
@@ -187,6 +281,7 @@ impl Plugin for FoxLotPlugin {
                         .before(ClickableSet)
                         .before(FollowMouse::system)),
                     (mousedown_fox_sanctuary, buy_fox_sanctuary).after(ClickableSet),
+                    PriceContainerText::update.run_if(resource_changed::<FoxLotPrice>),
                 )
                     .run_if(in_state(AppState::Merge)),
             );
@@ -215,16 +310,18 @@ fn mousedown_fox_sanctuary(
 }
 #[allow(clippy::needless_pass_by_value)]
 fn buy_fox_sanctuary(
+    mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut money: ResMut<Money>,
     mut fox_lot_price: ResMut<FoxLotPrice>,
     mut fox_storage_info: ResMut<FoxStorageInfo>,
     mut fox_sanctuary_mouseup_events: EventReader<FoxSanctuaryMouseupEvent>,
-    mut fox_sanctuaries_q: Query<(&mut FoxSanctuary, &mut Sprite)>,
+    mut fox_sanctuaries_q: Query<(&mut FoxSanctuary, &mut Sprite, &Children)>,
+    price_containers_q: Query<Entity, With<PriceContainer>>,
 ) {
     for ev in fox_sanctuary_mouseup_events.read() {
         if money.ge(&fox_lot_price.0) {
-            if let Ok((mut fox_sanctuary, mut fox_sanctuary_sprite)) =
+            if let Ok((mut fox_sanctuary, mut fox_sanctuary_sprite, fox_sanctuary_children)) =
                 fox_sanctuaries_q.get_mut(ev.0)
             {
                 // Buy Fox Sanctuary
@@ -235,6 +332,12 @@ fn buy_fox_sanctuary(
                     fox_sanctuary_sprite.image =
                         asset_server.load(format!("images/fox{}.png", fox_sanctuary.level));
                     fox_storage_info.total_capacity += FoxSanctuary::CAPACITY_PER_LEVEL;
+
+                    for &child in fox_sanctuary_children {
+                        if let Ok(price_container) = price_containers_q.get(child) {
+                            commands.entity(price_container).despawn_recursive();
+                        }
+                    }
                 }
             }
         }

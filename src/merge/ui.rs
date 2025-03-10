@@ -1,6 +1,7 @@
 use bevy::{
     app::{App, Plugin, Startup, Update},
     asset::AssetServer,
+    color::{palettes::tailwind::GRAY_300, Color},
     ecs::{
         component::Component,
         query::{Changed, With},
@@ -8,12 +9,15 @@ use bevy::{
         system::{Commands, Query, Res, ResMut},
     },
     hierarchy::{BuildChildren, ChildBuild, ChildBuilder},
+    math::{Vec2, Vec3},
+    sprite::Sprite,
     state::{condition::in_state, state::NextState},
-    text::TextFont,
+    text::{JustifyText, Text2d, TextFont, TextLayout},
+    transform::components::Transform,
     ui::{
         widget::{Button, Text},
-        AlignItems, AlignSelf, FlexDirection, Interaction, JustifyContent, JustifySelf, Node,
-        UiRect, Val,
+        AlignItems, AlignSelf, BackgroundColor, FlexDirection, Interaction, JustifyContent,
+        JustifySelf, Node, UiRect, Val,
     },
     utils::default,
 };
@@ -65,51 +69,7 @@ impl TopContainer {
         ))
         .with_children(|top_container| {
             MoneyContainer::spawn(top_container, asset_server);
-            PriceContainer::spawn(top_container, asset_server);
         });
-    }
-}
-#[derive(Component)]
-struct PriceContainer;
-impl PriceContainer {
-    const FONT_SIZE: f32 = 35.;
-
-    fn spawn(top_container: &mut ChildBuilder<'_>, asset_server: &Res<AssetServer>) {
-        top_container
-            .spawn((
-                Self,
-                Node {
-                    column_gap: Val::Px(10.),
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-            ))
-            .with_children(|price_container| {
-                price_container.spawn((Text::new("Price: "), TextFont::from_font_size(45.)));
-                CoinUI::spawn(
-                    price_container,
-                    asset_server,
-                    Val::Px(Self::FONT_SIZE),
-                    None,
-                );
-                price_container.spawn((
-                    FoxLotPriceUI,
-                    Text::new("0"),
-                    TextFont::from_font_size(Self::FONT_SIZE),
-                ));
-            });
-    }
-}
-#[derive(Component)]
-struct FoxLotPriceUI;
-impl FoxLotPriceUI {
-    #[allow(clippy::needless_pass_by_value)]
-    fn update(
-        mut fox_lot_price_ui_q: Query<&mut Text, With<Self>>,
-        fox_lot_price: Res<FoxLotPrice>,
-    ) {
-        let mut fox_lot_price_ui = fox_lot_price_ui_q.single_mut();
-        fox_lot_price_ui.0 = fox_lot_price.to_string();
     }
 }
 #[derive(Component)]
@@ -169,11 +129,7 @@ impl Plugin for UIPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, startup).add_systems(
             Update,
-            (
-                FoxLotPriceUI::update.run_if(resource_changed::<FoxLotPrice>),
-                SearchButton::system,
-            )
-                .run_if(in_state(AppState::Merge)),
+            SearchButton::system.run_if(in_state(AppState::Merge)),
         );
     }
 }
